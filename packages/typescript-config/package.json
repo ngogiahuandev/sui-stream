@@ -1,0 +1,14 @@
+{
+  "name": "@seal-pass/typescript-config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.js",
+  "exports": {
+    "./base": "./base.json",
+    "./next": "./nextjs.json",
+    "./react-library": "./react-library.json"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

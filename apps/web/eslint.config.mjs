@@ -1,18 +1,26 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import tseslint from "typescript-eslint";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-  ]),
-]);
-
-export default eslintConfig;
+export default [
+  {
+    name: "web",
+    files: ["src/**/*"],
+    languageOptions: {
+      parser: tseslint.parser,
+    },
+    rules: {
+      "no-console": "warn",
+      "no-unused-vars": "off",
+    },
+  },
+  {
+    name: "web",
+    ignores: [
+      "**/.next/**",
+      "**/out/**",
+      "**/build/**",
+      "**/next-env.d.ts",
+      "*.config.ts",
+      "*.config.js",
+    ],
+  },
+];

@@ -48,37 +48,6 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 
 ## Sui Move Contracts
 
-### Core Objects
-
-```move
-/// A single video clip
-struct Clip has key, store {
-    id: UID,
-    owner: address,
-    walrus_blob_id: String,       // Walrus blob reference
-    is_encrypted: bool,            // Whether Seal-encrypted
-    seal_policy_id: Option<ID>,    // Seal policy object (if private)
-    title: String,
-    description: String,
-    tags: vector<String>,          // AI-generated + user tags
-    duration_ms: u64,              // Must be ≤ 60000
-    thumbnail_blob_id: String,     // Walrus blob for thumbnail
-    created_at: u64,
-    views: u64,
-    likes: u64,
-}
-
-/// User profile
-struct Profile has key, store {
-    id: UID,
-    owner: address,
-    username: String,
-    avatar_blob_id: String,
-    clip_count: u64,
-    created_at: u64,
-}
-```
-
 ### Key Functions
 
 - `create_clip(...)` — Mint a new Clip object (validate duration ≤ 60s)

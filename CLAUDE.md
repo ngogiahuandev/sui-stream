@@ -1,392 +1,276 @@
-# CLAUDE.md — SealPass
+# CLAUDE.md — SuiStream
 
 ## Project Overview
 
-**SealPass** is a decentralized password manager built on the Sui blockchain, using **Seal** for client-side encryption policy enforcement and **Walrus** for decentralized encrypted blob storage. Users authenticate via their Sui wallet — no email, no master password, no centralized server holding secrets.
+**SuiStream** is a decentralized short video platform (≤ 60 seconds) built on the **Sui blockchain**. Users upload, watch, discover, and share short-form video clips. Videos are stored on **Walrus** (decentralized storage), optionally encrypted with **Seal** (for private/gated content), and automatically tagged by **AI** for discovery.
 
-**Hackathon context**: CommandOSS Hackathon, April 2026. Topic #13 from the list: "Password Manager using Walrus + Seal."
+This is the **MVP scope**. Do not add features beyond what is described here.
 
 ---
 
 ## Tech Stack
 
-| Layer          | Technology                                   |
-| -------------- | -------------------------------------------- |
-| Framework      | Next.js 14+ (App Router, `src/` directory)   |
-| Language       | TypeScript (strict mode)                     |
-| Styling        | Tailwind CSS + shadcn/ui components          |
-| State          | Zustand for client-side vault state          |
-| Wallet         | `@mysten/dapp-kit` + `@mysten/sui` SDK       |
-| Encryption     | `@mysten/seal` (client-side encrypt/decrypt) |
-| Storage        | Walrus SDK (encrypted blob store)            |
-| Smart Contract | Move (Sui) — vault access policy contracts   |
-| Package Mgr    | pnpm                                         |
-| Linting        | ESLint + Prettier                            |
+### Frontend
+
+- **Framework:** Next.js 14+ (App Router)
+- **Language:** TypeScript (strict mode)
+- **Styling:** Tailwind CSS
+- **State Management:** Zustand
+- **Wallet Integration:** `@mysten/dapp-kit` for Sui wallet connection
+- **Video Player:** vidstack or custom HTML5 `<video>` with HLS support if needed
+- **Form Handling:** React Hook Form + Zod validation
+
+### Blockchain
+
+- **Network:** Sui (testnet for dev, mainnet for prod)
+- **Smart Contracts:** Move language
+- **SDK:** `@mysten/sui` (TypeScript SDK)
+- **Wallet Standard:** Sui Wallet Standard (supports Sui Wallet, Suiet, Ethos, etc.)
+
+### Storage
+
+- **Video Storage:** Walrus (decentralized blob storage on Sui)
+- **Walrus SDK:** `@mysten/walrus` or direct HTTP publisher/aggregator API
+- **Metadata:** On-chain (Sui objects) for video metadata; off-chain indexer for queries
+
+### Encryption
+
+- **Seal Protocol:** Used for encrypting private video content
+- **Flow:** Encrypt blob before uploading to Walrus → store decryption policy on-chain → authorized users decrypt via Seal
+
+### AI
+
+- **Purpose:** Auto-tag uploaded videos (content labels, categories, scene detection)
+- **SDK:** Vercel AI SDK (`ai` package) with provider of choice (OpenAI, Google, Anthropic, etc.)
+- **Flow:** Extract keyframes from uploaded video → send to vision model via Vercel AI SDK → store returned tags as metadata on-chain
 
 ---
 
-## Architecture
+## Sui Move Contracts
 
-```
-┌─────────────────────────────────────────────────┐
-│                  Browser (Client)                │
-│                                                  │
-│  ┌────────────┐  ┌───────────┐  ┌────────────┐  │
-│  │  Next.js   │  │  Zustand   │  │  Seal SDK  │  │
-│  │  App UI    │◄─┤  Store     │  │  (encrypt/ │  │
-│  │            │  │  (vault    │  │   decrypt)  │  │
-│  └─────┬──────┘  │   state)   │  └─────┬──────┘  │
-│        │         └───────────┘        │          │
-│        │                              │          │
-│  ┌─────▼──────────────────────────────▼───────┐  │
-│  │          Sui Wallet (dapp-kit)              │  │
-│  │  - Signs transactions                      │  │
-│  │  - Identity = wallet address               │  │
-│  └─────┬──────────────────────────────┬───────┘  │
-│        │                              │          │
-└────────┼──────────────────────────────┼──────────┘
-         │                              │
-    ┌────▼─────┐                 ┌──────▼──────┐
-    │   Sui    │                 │   Walrus    │
-    │ Network  │                 │   Storage   │
-    │          │                 │             │
-    │ - Vault  │                 │ - Encrypted │
-    │   policy │                 │   password  │
-    │   objects│                 │   blobs     │
-    │ - Access │                 │             │
-    │   control│                 │             │
-    └──────────┘                 └─────────────┘
-```
-
-### Key Principle: Zero-Knowledge Architecture
-
-- **ALL encryption/decryption happens client-side** in the browser.
-- The Walrus network only ever stores encrypted blobs — it never sees plaintext.
-- Sui stores access policies and vault metadata (blob IDs, labels) — never secrets.
-- No backend server. The Next.js app is fully static/client-rendered for vault operations.
-
----
-
-## Project Structure
-
-```
-sealpass/
-├── CLAUDE.md
-├── package.json
-├── pnpm-lock.yaml
-├── next.config.ts
-├── tailwind.config.ts
-├── tsconfig.json
-├── .env.local                  # Sui network, Walrus endpoint configs
-│
-├── move/                       # Sui Move smart contracts
-│   ├── Move.toml
-│   └── sources/
-│       └── vault_policy.move   # On-chain vault access policy
-│
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx          # Root layout + providers
-│   │   ├── page.tsx            # Landing / connect wallet page
-│   │   ├── vault/
-│   │   │   └── page.tsx        # Main vault dashboard (protected)
-│   │   └── vault/
-│   │       └── [id]/
-│   │           └── page.tsx    # Single credential detail view
-│   │
-│   ├── components/
-│   │   ├── ui/                 # shadcn/ui primitives
-│   │   ├── layout/
-│   │   │   ├── header.tsx      # Top nav + wallet status
-│   │   │   └── sidebar.tsx     # Folder navigation
-│   │   ├── vault/
-│   │   │   ├── credential-card.tsx
-│   │   │   ├── credential-form.tsx
-│   │   │   ├── credential-list.tsx
-│   │   │   ├── vault-search.tsx
-│   │   │   └── folder-manager.tsx
-│   │   ├── auth/
-│   │   │   └── connect-wallet-button.tsx
-│   │   └── password-generator/
-│   │       └── password-generator.tsx
-│   │
-│   ├── lib/
-│   │   ├── seal.ts             # Seal encrypt/decrypt wrappers
-│   │   ├── walrus.ts           # Walrus blob upload/download helpers
-│   │   ├── sui.ts              # Sui transaction builders
-│   │   ├── crypto.ts           # Additional client-side crypto utils
-│   │   └── constants.ts        # Network endpoints, package IDs
-│   │
-│   ├── stores/
-│   │   └── vault-store.ts      # Zustand store for vault state
-│   │
-│   ├── types/
-│   │   └── index.ts            # Shared TypeScript types
-│   │
-│   └── hooks/
-│       ├── use-vault.ts        # Vault CRUD operations hook
-│       ├── use-seal.ts         # Seal encryption hook
-│       └── use-walrus.ts       # Walrus storage hook
-│
-└── public/
-    └── logo.svg
-```
-
----
-
-## Data Models
-
-### Credential Entry (Client-Side, Pre-Encryption)
-
-```typescript
-interface Credential {
-  id: string; // UUID, generated client-side
-  siteName: string; // e.g. "GitHub"
-  siteUrl: string; // e.g. "https://github.com"
-  username: string;
-  password: string; // plaintext, only exists in memory
-  notes?: string;
-  folderId?: string; // for folder organization
-  createdAt: number; // Unix timestamp
-  updatedAt: number;
-}
-```
-
-### Vault Index (Stored On-Chain as Sui Object)
-
-```typescript
-// This is the on-chain metadata — NO secrets here
-interface VaultIndex {
-  owner: string; // Sui wallet address
-  entries: VaultEntryMeta[]; // list of entry references
-}
-
-interface VaultEntryMeta {
-  entryId: string; // matches Credential.id
-  label: string; // encrypted or plaintext site label (for search)
-  walrusBlobId: string; // pointer to encrypted blob on Walrus
-  createdAt: number;
-  updatedAt: number;
-}
-```
-
-### Encrypted Blob (Stored on Walrus)
-
-The entire `Credential` object is JSON-serialized, encrypted via Seal, then uploaded as a single blob to Walrus. The `walrusBlobId` returned is stored in the on-chain VaultIndex.
-
----
-
-## MVP Features (Scope)
-
-### F1: Wallet-Based Authentication
-
-- User lands on `/` and clicks "Connect Wallet."
-- Use `@mysten/dapp-kit` `ConnectButton` and wallet hooks.
-- After connection, redirect to `/vault`.
-- No signup flow, no email, no password. Wallet address = user identity.
-- Protect `/vault/*` routes — redirect to `/` if no wallet connected.
-
-### F2: Vault CRUD (Create, Read, Update, Delete)
-
-- **Create**: User fills a form (site name, URL, username, password, notes, folder). Client encrypts the full credential via Seal → uploads encrypted blob to Walrus → stores blob reference on-chain in VaultIndex.
-- **Read**: Fetch VaultIndex from chain → for each entry, fetch encrypted blob from Walrus → decrypt client-side via Seal → display in UI.
-- **Update**: Decrypt existing → modify fields → re-encrypt → re-upload to Walrus (new blob ID) → update on-chain reference.
-- **Delete**: Remove entry from on-chain VaultIndex. Optionally request Walrus blob deletion (if supported).
-
-### F3: Client-Side Encryption via Seal
-
-- All encryption uses Seal SDK with policies tied to the user's wallet address.
-- Encryption policy: "only the wallet address that created this entry can decrypt it."
-- Encrypt flow: `plaintext → Seal.encrypt(data, policy) → ciphertext blob`
-- Decrypt flow: `ciphertext blob → Seal.decrypt(blob, wallet) → plaintext`
-- **Never store or transmit plaintext.**
-
-### F4: Walrus Blob Storage
-
-- Encrypted credential blobs are stored on Walrus.
-- Use Walrus HTTP Publisher API or SDK for upload/download.
-- Store/retrieve by blob ID.
-- Handle blob not found errors gracefully.
-
-### F5: Password Generator
-
-- Modal/popover accessible from the credential form.
-- Options: length (8–64), uppercase, lowercase, numbers, symbols.
-- One-click copy to clipboard.
-- Auto-fill into the password field when generating from the form.
-- Show password strength indicator (weak/medium/strong/very strong).
-
-### F6: Search & Folder Organization
-
-- **Search**: Client-side text search across decrypted credential labels/site names.
-- **Folders**: User can create folders (e.g. "Work", "Personal", "Finance").
-- Folder data stored as part of the vault index.
-- Credentials can be assigned to a folder.
-- Sidebar displays folder tree; clicking a folder filters the credential list.
-
----
-
-## Move Smart Contract (Vault Policy)
-
-The Move module manages vault ownership and entry metadata on-chain.
-
-### Key Objects
+### Core Objects
 
 ```move
-/// The user's vault — one per wallet address
-struct Vault has key, store {
+/// A single video clip
+struct Clip has key, store {
     id: UID,
     owner: address,
-    entries: vector<EntryMeta>,
+    walrus_blob_id: String,       // Walrus blob reference
+    is_encrypted: bool,            // Whether Seal-encrypted
+    seal_policy_id: Option<ID>,    // Seal policy object (if private)
+    title: String,
+    description: String,
+    tags: vector<String>,          // AI-generated + user tags
+    duration_ms: u64,              // Must be ≤ 60000
+    thumbnail_blob_id: String,     // Walrus blob for thumbnail
+    created_at: u64,
+    views: u64,
+    likes: u64,
 }
 
-/// Metadata for a single credential entry (NO secrets)
-struct EntryMeta has store, copy, drop {
-    entry_id: vector<u8>,       // UUID bytes
-    label: vector<u8>,          // site label (could be encrypted)
-    walrus_blob_id: vector<u8>, // Walrus blob reference
+/// User profile
+struct Profile has key, store {
+    id: UID,
+    owner: address,
+    username: String,
+    avatar_blob_id: String,
+    clip_count: u64,
     created_at: u64,
-    updated_at: u64,
 }
 ```
 
 ### Key Functions
 
-```move
-/// Create a new vault for the caller
-public entry fun create_vault(ctx: &mut TxContext)
+- `create_clip(...)` — Mint a new Clip object (validate duration ≤ 60s)
+- `like_clip(clip: &mut Clip)` — Increment likes
+- `increment_views(clip: &mut Clip)` — Increment view count
+- `update_tags(clip: &mut Clip, tags: vector<String>)` — Set AI-generated tags
+- `create_profile(...)` — Create user profile
+- `delete_clip(clip: Clip)` — Burn clip object (owner only)
 
-/// Add a credential entry reference to the vault
-public entry fun add_entry(
-    vault: &mut Vault,
-    entry_id: vector<u8>,
-    label: vector<u8>,
-    walrus_blob_id: vector<u8>,
-    ctx: &mut TxContext,
-)
+### Conventions
 
-/// Update an existing entry's blob reference (after re-encryption)
-public entry fun update_entry(
-    vault: &mut Vault,
-    entry_id: vector<u8>,
-    new_label: vector<u8>,
-    new_walrus_blob_id: vector<u8>,
-    ctx: &mut TxContext,
-)
+- All entry functions should use `entry fun` with proper capability checks
+- Use `tx_context::sender(ctx)` for ownership verification
+- Emit events for indexing: `ClipCreated`, `ClipLiked`, `ClipViewed`
+- Package ID stored in `lib/constants.ts` — update after each deploy
 
-/// Remove an entry from the vault
-public entry fun remove_entry(
-    vault: &mut Vault,
-    entry_id: vector<u8>,
-    ctx: &mut TxContext,
-)
+---
+
+## Core User Flows
+
+### 1. Upload Flow
+
+```
+User connects wallet
+  → Selects video file (client validates ≤ 60s, max 100MB)
+  → Client extracts thumbnail + keyframes
+  → Client calls /api/tag with keyframes → receives AI tags
+  → If private: encrypt video blob via Seal
+  → Upload video blob to Walrus → get blob_id
+  → Upload thumbnail to Walrus → get thumbnail_blob_id
+  → Build & execute Sui transaction: create_clip(...)
+  → Show success + link to clip
 ```
 
-All mutating functions assert `tx_context::sender(ctx) == vault.owner`.
+### 2. Watch Flow
 
----
-
-## User Flows
-
-### Flow 1: First-Time User
-
-1. User visits SealPass → sees landing page.
-2. Clicks "Connect Wallet" → Sui wallet popup.
-3. After connecting, app checks if a Vault object exists for this address on-chain.
-4. If no vault → call `create_vault` transaction.
-5. Redirect to `/vault` → empty state with "Add your first password" CTA.
-
-### Flow 2: Add a Credential
-
-1. User clicks "+ Add" → credential form opens.
-2. Fills in site name, URL, username.
-3. Either types a password or clicks "Generate" → password generator popover.
-4. Optionally selects a folder, adds notes.
-5. Clicks "Save":
-   - Client serializes the credential to JSON.
-   - Encrypts via Seal (policy: owner-only).
-   - Uploads encrypted blob to Walrus → gets blob ID.
-   - Sends Sui transaction: `add_entry(vault, id, label, blobId)`.
-6. Entry appears in the vault list.
-
-### Flow 3: View/Copy a Credential
-
-1. User sees list of credentials (labels visible).
-2. Clicks an entry → app fetches encrypted blob from Walrus.
-3. Decrypts via Seal using connected wallet.
-4. Shows username/password (masked by default).
-5. Click to reveal, click to copy.
-
-### Flow 4: Edit a Credential
-
-1. From detail view, clicks "Edit."
-2. Modifies fields → "Save."
-3. Re-encrypt → upload new blob → update on-chain entry with new blob ID.
-
-### Flow 5: Delete a Credential
-
-1. From detail view or list, clicks "Delete" → confirmation dialog.
-2. Sends `remove_entry` transaction on-chain.
-3. Entry removed from vault list.
-
----
-
-## Environment Variables
-
-```env
-# .env.local
-NEXT_PUBLIC_SUI_NETWORK=testnet
-NEXT_PUBLIC_SUI_PACKAGE_ID=0x...        # Deployed Move package address
-NEXT_PUBLIC_WALRUS_AGGREGATOR_URL=https://aggregator.walrus-testnet.walrus.space
-NEXT_PUBLIC_WALRUS_PUBLISHER_URL=https://publisher.walrus-testnet.walrus.space
-NEXT_PUBLIC_SEAL_PACKAGE_ID=0x...       # Seal package ID on testnet
+```
+User opens clip page or scrolls feed
+  → Fetch Clip object from Sui (or indexer)
+  → If not encrypted: fetch blob from Walrus aggregator → play
+  → If encrypted: check Seal policy → decrypt via Seal → play
+  → Fire increment_views transaction (debounced, after 3s watch)
 ```
 
----
+### 3. Discovery Flow
 
-## Development Commands
-
-```bash
-pnpm install          # Install dependencies
-pnpm dev              # Start dev server (localhost:3000)
-pnpm build            # Production build
-pnpm lint             # ESLint check
-sui move build        # Compile Move contracts (from /move directory)
-sui client publish    # Deploy Move package to testnet
+```
+Home feed: query indexer for recent clips, sorted by created_at
+  → Filter by tags / categories
+  → Search by tag keywords
+  → Profile pages show user's clips
 ```
 
 ---
 
 ## Coding Conventions
 
-- Use **functional components** with hooks only. No class components.
-- File names: `kebab-case.tsx` for components, `camelCase.ts` for utils/hooks.
-- Prefer `async/await` over `.then()` chains.
-- All Sui/Walrus/Seal interactions go through `src/lib/` wrappers — components never call SDKs directly.
-- Type everything. No `any`. Use `unknown` + type guards where needed.
-- Error handling: wrap all blockchain/network calls in try-catch. Show toast notifications for errors (use shadcn `sonner` or `toast`).
-- Keep components small. If a component exceeds ~150 lines, split it.
-- All encryption must happen before data leaves the component calling the save action.
+### Architecture — Strict Logic / UI Separation
+
+- **`/apps/web/src/app/*` is for routing ONLY.** Page files (`page.tsx`, `layout.tsx`) must contain zero business logic, zero state, zero data fetching. They import a view component and render it — nothing else. Example:
+  ```tsx
+  // apps/web/src/app/upload/page.tsx — CORRECT
+  import { UploadView } from "@/components/upload/UploadView";
+  export default function UploadPage() {
+    return <UploadView />;
+  }
+  ```
+- **Components are UI only.** Components receive data and callbacks via props or by calling custom hooks. They handle rendering, layout, and user interaction (onClick, onChange). They do NOT contain: fetch calls, transaction building, encryption logic, direct Zustand access, or any business logic.
+- **All logic lives in custom hooks.** Every feature's state management, data fetching, mutations, transaction building, side effects, and derived state must be in dedicated hooks under `/hooks`. Hooks are the single source of truth for "what happens when."
+- **One feature = one hook + one (or more) UI component(s).** Example: `useClipUpload` hook handles the entire upload pipeline (validate → extract keyframes → tag → encrypt → upload → transact). `ClipUploader.tsx` just renders the form and calls the hook.
+
+### File Organization
+
+- Every distinct feature, utility, type definition, and hook goes in its own file — no mega-files combining unrelated concerns
+- Never put multiple hooks in one file. One hook per file, named after the hook: `useClip.ts`, `useWalrus.ts`, `useSeal.ts`
+- Never put multiple components in one file unless they are small private sub-components used only by the parent in the same file
+- Lib files (`/lib`) are pure functions and client configs — no React, no hooks, no state. These are importable by both hooks and server-side code
+- Type definitions: one file per domain (`clip.ts`, `profile.ts`) with barrel export from `types/index.ts`
+
+### TypeScript
+
+- Strict mode enabled, no `any` types
+- Use `interface` for object shapes, `type` for unions/intersections
+- Prefer named exports over default exports (except `page.tsx` which requires default)
+- All async functions must have explicit error handling (try/catch or Result pattern)
+- Use barrel exports from `types/index.ts`
+
+### React / Next.js
+
+- Use Server Components by default; add `"use client"` only when needed (interactivity, hooks, wallet)
+- Use Suspense boundaries with skeleton loaders for async content
+- File naming: PascalCase for components, camelCase for utilities/hooks
+- Keep components under 150 lines; extract sub-components if larger
+- API routes (`route.ts`) are the only place server-side secrets and Vercel AI SDK server calls should live
+
+### Styling
+
+- Tailwind CSS only — no CSS modules, no styled-components
+- Use `cn()` utility (clsx + tailwind-merge) for conditional classes
+- Mobile-first responsive design (`sm:`, `md:`, `lg:` breakpoints)
+- Dark mode support via `dark:` variant from day one
+
+### Transactions (Sui)
+
+- All transaction builders go in `/lib/sui.ts` as pure functions
+- Hooks consume these builders — components never import from `/lib/sui.ts` directly
+- Use `Transaction` from `@mysten/sui/transactions`
+- Always use `dryRunTransactionBlock` before executing in dev
+- Handle transaction errors with user-friendly toast messages
+
+### Error Handling
+
+- Use toast notifications for user-facing errors (sonner)
+- Log detailed errors to console in development
+- Never expose raw blockchain errors to users — map to friendly messages in hooks before passing to UI
 
 ---
 
-## Security Rules
+## Key Technical Decisions
 
-1. **Never log, persist, or transmit plaintext credentials.** Not in console.log, not in localStorage, not in any network request.
-2. **Never store decrypted vault data in Zustand across page navigations.** Decrypt on-demand, hold in local component state, clear on unmount.
-3. **Always validate wallet ownership** before any write operation (enforced on-chain in Move, but also assert client-side).
-4. **Clipboard writes** should be auto-cleared after 30 seconds.
-5. **Session timeout**: if the wallet disconnects or the tab is inactive for 15 minutes, clear all in-memory decrypted data.
+### Video Processing (Client-Side)
+
+- Validate duration using `HTMLVideoElement.duration` before upload
+- Extract thumbnail at 1s mark using `<canvas>` capture
+- Extract 3-5 keyframes evenly distributed for AI tagging
+- Compress/transcode if needed using FFmpeg.wasm (only if file > 50MB)
+
+### Walrus Integration
+
+- Upload via Walrus Publisher HTTP API (PUT /v1/blobs)
+- Download via Walrus Aggregator HTTP API (GET /v1/blobs/{blobId})
+- Store `blobId` on-chain, never the full URL
+- Handle epochs: Walrus blobs have storage duration — track expiry
+
+### Seal Integration
+
+- Encrypt the video blob client-side before uploading to Walrus
+- Create a Seal policy on-chain defining who can decrypt (e.g., owner-only, allowlist)
+- Decryption happens client-side: fetch encrypted blob → Seal decrypt → play
+- Use `@aspect-build/seal-sdk` or direct Seal contract calls
+
+### AI Tagging
+
+- Server-side API route `/api/tag` using Vercel AI SDK (`generateObject` or `generateText` with structured output)
+- Send keyframe images (base64) to vision model via Vercel AI SDK provider (OpenAI, Google, etc.)
+- Return structured tags: `{ categories: string[], objects: string[], mood: string, description: string }`
+- Store flattened tag strings on-chain for discoverability
+- Rate limit: max 1 tagging request per upload
+
+### Indexing
+
+- MVP: Use Sui RPC `queryEvents` + `getOwnedObjects` for basic queries
+- Structure events for efficient filtering by tag, owner, timestamp
+- If performance is insufficient: add a lightweight indexer (Sui indexer framework or custom with PostgreSQL)
 
 ---
 
-## Non-Goals (Out of MVP Scope)
+## Commands
 
-- Social recovery / threshold decryption (future wow feature)
-- Digital inheritance / dead man's switch (future wow feature)
-- Time-locked sharing (future wow feature)
-- Browser extension / autofill
-- Mobile app
-- Import/export from other password managers
-- Multi-device sync (inherently handled by wallet + on-chain, but not explicitly designed for in MVP)
-- Biometric auth
+```bash
+# Install dependencies
+pnpm install
+
+# Run development server
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Deploy Move contracts (testnet)
+pnpm run deploy:contracts
+
+# Run type checking
+pnpm typecheck
+
+# Lint
+pnpm lint
+```
+
+---
+
+## Do Not
+
+- Do NOT add features beyond MVP scope (no comments, no playlists, no monetization, no live streaming)
+- Do NOT use `any` type in TypeScript
+- Do NOT store video files on-chain — only metadata and blob references
+- Do NOT call AI APIs from the client — always proxy through Next.js API routes using Vercel AI SDK
+- Do NOT skip wallet connection checks before transactions
+- Do NOT hardcode package IDs — always read from constants.ts / env
+- Do NOT ignore Walrus blob epoch expiry in the upload flow
+- Do NOT upload unvalidated video files (always check duration ≤ 60s client-side AND in Move contract)
+- Do NOT put business logic, state, data fetching, or side effects in components — that belongs in hooks
+- Do NOT put UI rendering, JSX, or React hooks in lib files — those are pure utility functions
+- Do NOT put anything other than route wiring (import view + render) in `/apps/web/src/app/*` page files
+- Do NOT combine multiple features, hooks, or unrelated logic into a single file

@@ -1,7 +1,5 @@
-export default function Home() {
-  return (
-    <main>
-      <h1>SealPass</h1>
-    </main>
-  );
+import { HomeView } from '@/components/home/HomeView';
+
+export default function HomePage() {
+  return <HomeView />;
 }

@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronDown, LogOut, Wallet } from 'lucide-react';
+import Link from 'next/link';
+import { ChevronDown, LayoutDashboard, LogOut, Wallet } from 'lucide-react';
 import { ConnectModal } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
 import {
@@ -75,6 +76,13 @@ export function ConnectWalletButton({ className }: ConnectWalletButtonProps) {
               />
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link href="/dashboard">
+              <LayoutDashboard aria-hidden="true" />
+              Dashboard
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={disconnect}

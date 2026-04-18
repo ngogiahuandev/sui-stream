@@ -8,6 +8,7 @@ import {
   createNetworkConfig,
 } from '@mysten/dapp-kit';
 import { getJsonRpcFullnodeUrl } from '@mysten/sui/jsonRpc';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
 
 import '@mysten/dapp-kit/dist/index.css';
@@ -39,8 +40,10 @@ export function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <SuiClientProvider networks={networkConfig} defaultNetwork="testnet">
         <WalletProvider autoConnect>
-          {children}
-          <Toaster position="bottom-right" />
+          <TooltipProvider delayDuration={200}>
+            {children}
+            <Toaster position="bottom-right" />
+          </TooltipProvider>
         </WalletProvider>
       </SuiClientProvider>
     </QueryClientProvider>

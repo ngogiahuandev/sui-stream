@@ -20,14 +20,6 @@ interface ConnectWalletButtonProps {
   className?: string;
 }
 
-/**
- * UI-only Connect Wallet button.
- *
- * All wallet state + side effects live in `useWalletConnection` (see CLAUDE.md
- * "Architecture — Strict Logic / UI Separation"). When disconnected the button
- * opens the dapp-kit ConnectModal; when connected it becomes a dropdown with
- * the truncated address and a disconnect action.
- */
 export function ConnectWalletButton({ className }: ConnectWalletButtonProps) {
   const {
     isConnected,
@@ -59,7 +51,7 @@ export function ConnectWalletButton({ className }: ConnectWalletButtonProps) {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">
           <DropdownMenuLabel className="flex flex-col gap-1">
-            <span className="text-xs font-normal text-muted-foreground">
+            <span className="text-muted-foreground text-xs font-normal">
               {walletName ?? 'Connected wallet'}
             </span>
             <div className="flex items-center justify-between gap-2">

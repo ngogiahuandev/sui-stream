@@ -1,13 +1,7 @@
 'use client';
 
 import type { ComponentProps } from 'react';
-import {
-  CloudUploadIcon,
-  CompassIcon,
-  LayoutDashboardIcon,
-  PlusIcon,
-  SettingsIcon,
-} from 'lucide-react';
+import { CompassIcon, SettingsIcon } from 'lucide-react';
 
 import { Logo } from '@/components/layout/Logo';
 import { NavMain } from '@/components/sidebar/NavMain';
@@ -24,16 +18,6 @@ import {
 
 const SIDEBAR_DATA = {
   navMain: [
-    {
-      title: 'Dashboard',
-      url: '/dashboard',
-      icon: <LayoutDashboardIcon />,
-    },
-    {
-      title: 'Upload',
-      url: '/dashboard/upload',
-      icon: <CloudUploadIcon />,
-    },
     {
       title: 'Discover',
       url: '/dashboard/discover',

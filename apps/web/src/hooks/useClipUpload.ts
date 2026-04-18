@@ -8,14 +8,19 @@ import { toast } from 'sonner';
 import {
   useCurrentAccount,
   useSignAndExecuteTransaction,
+  useSuiClient,
 } from '@mysten/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
 import { extractThumbnail, getVideoMetadata } from '@/lib/video-thumbnail';
 import type { VideoMetadata, VideoThumbnail } from '@/lib/video-thumbnail';
 import { uploadBlobToWalrus } from '@/lib/walrus';
 import { buildCreateClipTx } from '@/lib/sui';
+import { createSealClient, encryptClipBytes } from '@/lib/seal';
+import { executeAsSponsor } from '@/lib/sponsor-client';
+import { SUI_STREAM_MODULE, SUI_STREAM_PACKAGE_ID } from '@/lib/constants';
 import {
   parseTags,
+  suiToMist,
   uploadFormSchema,
   type UploadFormValues,
 } from '@/lib/validation/upload-schema';
@@ -44,15 +49,36 @@ export interface UseClipUploadResult {
   onSubmit: (values: UploadFormValues) => Promise<void>;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
+  }
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds >= 3600) {
+    const hours = seconds / 3600;
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (seconds >= 60) {
+    const mins = Math.round(seconds / 60);
+    return `${mins} minute${mins === 1 ? '' : 's'}`;
+  }
+  return `${seconds} seconds`;
+}
+
 function validateFile(file: File): string | null {
   const acceptedMimeTypes: readonly string[] = ACCEPTED_VIDEO_MIME_TYPES;
-  if (!acceptedMimeTypes.includes(file.type) && !file.type.startsWith('video/')) {
+  if (
+    !acceptedMimeTypes.includes(file.type) &&
+    !file.type.startsWith('video/')
+  ) {
     return 'Please select a supported video file (mp4, mov, webm).';
   }
   if (file.size > CLIP_LIMITS.maxSizeBytes) {
-    return `Video must be under ${Math.round(
-      CLIP_LIMITS.maxSizeBytes / (1024 * 1024)
-    )} MB.`;
+    return `Video must be ${formatBytes(CLIP_LIMITS.maxSizeBytes)} or smaller. Your file is ${formatBytes(file.size)}.`;
   }
   return null;
 }
@@ -61,7 +87,10 @@ export function useClipUpload(): UseClipUploadResult {
   const router = useRouter();
   const queryClient = useQueryClient();
   const account = useCurrentAccount();
-  const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
+  const suiClient = useSuiClient();
+
+  const { mutateAsync: signAndExecuteTransaction } =
+    useSignAndExecuteTransaction();
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
@@ -71,14 +100,17 @@ export function useClipUpload(): UseClipUploadResult {
       title: '',
       description: '',
       tagsInput: '',
+      visibility: 'public',
+      priceSui: '',
     },
   });
+
+  const visibility = form.watch('visibility');
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [thumbnail, setThumbnail] = useState<VideoThumbnail | null>(null);
-  const [visibility] = useState<ClipVisibility>('public');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -105,7 +137,13 @@ export function useClipUpload(): UseClipUploadResult {
 
   const clearFile = useCallback(() => {
     resetFileState();
-    form.reset({ title: '', description: '', tagsInput: '' });
+    form.reset({
+      title: '',
+      description: '',
+      tagsInput: '',
+      visibility: 'public',
+      priceSui: '',
+    });
   }, [resetFileState, form]);
 
   const onFileSelected = useCallback(
@@ -132,7 +170,7 @@ export function useClipUpload(): UseClipUploadResult {
 
         const probed = await getVideoMetadata(nextFile);
         if (probed.durationSeconds > CLIP_LIMITS.maxDurationSeconds) {
-          const message = `Clips must be ${CLIP_LIMITS.maxDurationSeconds} seconds or shorter.`;
+          const message = `Clips must be ${formatDuration(CLIP_LIMITS.maxDurationSeconds)} or shorter. This video is ${formatDuration(Math.round(probed.durationSeconds))}.`;
           setValidationError(message);
           toast.error(message);
           URL.revokeObjectURL(nextUrl);
@@ -175,15 +213,36 @@ export function useClipUpload(): UseClipUploadResult {
       }
 
       setIsSubmitting(true);
-      const submitToast = toast.loading('Uploading clip to Walrus…');
+      const submitToast = toast.loading('Preparing upload…');
 
       try {
+        const isPrivate = values.visibility === 'private';
+
+        let priceMist: bigint | undefined;
+        let sealIdBytes: Uint8Array | undefined;
+        let videoPayload: Blob = file;
+
+        if (isPrivate) {
+          priceMist = suiToMist(values.priceSui ?? '');
+
+          toast.loading('Encrypting clip…', { id: submitToast });
+          const sealClient = createSealClient(suiClient);
+          const rawBytes = new Uint8Array(await file.arrayBuffer());
+          const encrypted = await encryptClipBytes(sealClient, rawBytes);
+          sealIdBytes = encrypted.sealIdBytes;
+          const cipherBuffer = new ArrayBuffer(encrypted.ciphertext.byteLength);
+          new Uint8Array(cipherBuffer).set(encrypted.ciphertext);
+          videoPayload = new Blob([cipherBuffer], {
+            type: 'application/octet-stream',
+          });
+        }
+
+        toast.loading('Uploading to Walrus…', { id: submitToast });
+
         const [videoUpload, thumbUpload] = await Promise.all([
-          uploadBlobToWalrus(file),
+          uploadBlobToWalrus(videoPayload),
           uploadBlobToWalrus(thumbnail.blob),
         ]);
-
-        toast.loading('Publishing on Sui…', { id: submitToast });
 
         const tx = buildCreateClipTx({
           title: values.title.trim(),
@@ -192,16 +251,37 @@ export function useClipUpload(): UseClipUploadResult {
           blobId: videoUpload.blobId,
           thumbnailBlobId: thumbUpload.blobId,
           durationSeconds: Math.max(1, Math.round(metadata.durationSeconds)),
-          visibility,
+          visibility: isPrivate ? 'private' : 'public',
+          recipient: account.address,
+          priceMist,
+          sealIdBytes,
         });
 
-        // TODO(sponsor): swap to sponsored tx once the gas station is wired up.
-        await signAndExecute({ transaction: tx });
+        const target = isPrivate
+          ? `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_private_clip`
+          : `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_public_clip`;
 
-        await queryClient.invalidateQueries({ queryKey: ['public-clips'] });
+        toast.loading('Publishing on Sui…', { id: submitToast });
+
+        if (isPrivate) {
+          await signAndExecuteTransaction({
+            transaction: tx,
+          });
+        } else {
+          await executeAsSponsor({
+            transaction: tx,
+            client: suiClient,
+            allowedMoveCallTargets: [target],
+          });
+        }
 
         toast.success('Clip published!', { id: submitToast });
         clearFile();
+
+        await new Promise((resolve) => setTimeout(resolve, 2500));
+        await queryClient.refetchQueries({
+          queryKey: ['public-clips', SUI_STREAM_PACKAGE_ID],
+        });
         router.push('/dashboard/discover');
       } catch (error) {
         console.error('[upload] failed to publish clip', error);
@@ -218,9 +298,8 @@ export function useClipUpload(): UseClipUploadResult {
       file,
       thumbnail,
       metadata,
-      visibility,
       account,
-      signAndExecute,
+      suiClient,
       queryClient,
       clearFile,
       router,

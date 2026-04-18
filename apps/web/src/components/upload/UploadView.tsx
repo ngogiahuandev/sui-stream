@@ -6,7 +6,7 @@ export function UploadView() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Upload a clip</h1>
         <p className="text-sm text-muted-foreground">
-          Share a short clip (up to 60 seconds) on SuiStream. We&apos;ll generate
+          Share a clip on SuiStream — up to 1 hour and 1 GB. We&apos;ll generate
           a thumbnail automatically from your video.
         </p>
       </header>

@@ -28,6 +28,7 @@ fun create_public_clip_happy_path() {
         string::utf8(b"blob-12345"),
         string::utf8(b"thumb-12345"),
         45,
+        CREATOR,
         &clk,
         ctx,
     );
@@ -58,6 +59,7 @@ fun increment_views_and_likes() {
         string::utf8(b"blob"),
         string::utf8(b"thumb"),
         10,
+        CREATOR,
         &clk,
         ctx,
     );
@@ -79,7 +81,7 @@ fun increment_views_and_likes() {
 
 #[test]
 #[expected_failure(abort_code = sui_stream::clip::EDurationTooLong)]
-fun rejects_clip_over_60_seconds() {
+fun rejects_clip_over_one_hour() {
     let mut scenario = ts::begin(CREATOR);
     let ctx = ts::ctx(&mut scenario);
     let clk = clock::create_for_testing(ctx);
@@ -90,7 +92,8 @@ fun rejects_clip_over_60_seconds() {
         vector::empty<string::String>(),
         string::utf8(b"blob"),
         string::utf8(b"thumb"),
-        61,
+        3601,
+        CREATOR,
         &clk,
         ctx,
     );
@@ -120,6 +123,7 @@ fun rejects_too_many_tags() {
         string::utf8(b"blob"),
         string::utf8(b"thumb"),
         30,
+        CREATOR,
         &clk,
         ctx,
     );
@@ -142,6 +146,7 @@ fun rejects_empty_title() {
         string::utf8(b"blob"),
         string::utf8(b"thumb"),
         30,
+        CREATOR,
         &clk,
         ctx,
     );

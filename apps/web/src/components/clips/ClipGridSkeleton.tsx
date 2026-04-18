@@ -4,18 +4,17 @@ interface ClipGridSkeletonProps {
   count?: number;
 }
 
-export function ClipGridSkeleton({ count = 8 }: ClipGridSkeletonProps) {
+const ASPECT_PATTERN = ['16 / 9', '9 / 16', '16 / 9', '1 / 1', '9 / 16', '16 / 9'];
+
+export function ClipGridSkeleton({ count = 10 }: ClipGridSkeletonProps) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="columns-2 gap-3 sm:columns-3 lg:columns-4 xl:columns-5 [column-fill:_balance]">
       {Array.from({ length: count }).map((_, i) => (
-        <div
+        <Skeleton
           key={i}
-          className="border-border/60 flex flex-col gap-3 rounded-xl border p-3"
-        >
-          <Skeleton className="aspect-video w-full rounded-xl" />
-          <Skeleton className="h-4 w-4/5" />
-          <Skeleton className="h-3 w-1/2" />
-        </div>
+          style={{ aspectRatio: ASPECT_PATTERN[i % ASPECT_PATTERN.length] }}
+          className="mb-3 w-full break-inside-avoid rounded-xl"
+        />
       ))}
     </div>
   );

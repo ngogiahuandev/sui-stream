@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  useCurrentAccount,
-  useSignAndExecuteTransaction,
-} from '@mysten/dapp-kit';
+import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { buildIncrementViewsTx } from '@/lib/sui';
+import { executeAsSponsor } from '@/lib/sponsor-client';
+import {
+  SUI_STREAM_MODULE,
+  SUI_STREAM_PACKAGE_ID,
+} from '@/lib/constants';
 
 const VIEW_THRESHOLD_RATIO = 2 / 3;
 
@@ -27,7 +29,7 @@ export function useIncrementViews({
   enabled = true,
 }: UseIncrementViewsOptions): UseIncrementViewsResult {
   const account = useCurrentAccount();
-  const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
+  const suiClient = useSuiClient();
   const firingRef = useRef(false);
   const [hasFired, setHasFired] = useState(false);
 
@@ -55,14 +57,20 @@ export function useIncrementViews({
       setHasFired(true);
 
       const tx = buildIncrementViewsTx(clipId);
-      signAndExecute({ transaction: tx }).catch((error) => {
+      executeAsSponsor({
+        transaction: tx,
+        client: suiClient,
+        allowedMoveCallTargets: [
+          `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::increment_views`,
+        ],
+      }).catch((error) => {
         console.warn('[views] failed to increment views', error);
         sessionFiredClips.delete(clipId);
         firingRef.current = false;
         setHasFired(false);
       });
     },
-    [enabled, clipId, account, durationSeconds, signAndExecute, hasFired]
+    [enabled, clipId, account, durationSeconds, suiClient, hasFired]
   );
 
   return { notifyTimeUpdate };

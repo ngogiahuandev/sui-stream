@@ -39,7 +39,6 @@ export function usePublicClips() {
       for (const ev of events.data) {
         const payload = ev.parsedJson as ClipCreatedEventPayload | undefined;
         if (!payload) continue;
-        if (Number(payload.visibility) !== 0) continue;
         if (payload.id) ids.add(payload.id);
       }
 
@@ -53,7 +52,7 @@ export function usePublicClips() {
       const clips: Clip[] = [];
       for (const obj of objects) {
         const parsed = parseClipObject(obj);
-        if (parsed && parsed.visibility === 'public') clips.push(parsed);
+        if (parsed) clips.push(parsed);
       }
 
       clips.sort((a, b) => b.createdAtMs - a.createdAtMs);

@@ -1,15 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeftIcon, EyeIcon, HeartIcon } from 'lucide-react';
+import { ArrowLeftIcon, EyeIcon, HeartIcon, LockIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CopyButton } from '@/components/common/CopyButton';
 import { VideoPlayer } from '@/components/watch/VideoPlayer';
+import { PrivateVideoPlayer } from '@/components/watch/PrivateVideoPlayer';
 import { useClip } from '@/hooks/useClip';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { getWalrusBlobUrl } from '@/lib/walrus';
+import { mistToSui } from '@/lib/validation/upload-schema';
 
 interface WatchViewProps {
   id: string;
@@ -54,7 +56,7 @@ export function WatchView({ id }: WatchViewProps) {
     );
   }
 
-  const videoUrl = getWalrusBlobUrl(clip.blobId);
+  const isPrivate = clip.visibility === 'private';
   const posterUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
 
   return (
@@ -66,29 +68,46 @@ export function WatchView({ id }: WatchViewProps) {
         </Link>
       </Button>
 
-      <VideoPlayer
-        src={videoUrl}
-        poster={posterUrl}
-        onTimeUpdate={notifyTimeUpdate}
-      />
+      {isPrivate ? (
+        <PrivateVideoPlayer
+          clip={clip}
+          onTimeUpdate={notifyTimeUpdate}
+          preventDownload
+        />
+      ) : (
+        <VideoPlayer
+          src={getWalrusBlobUrl(clip.blobId)}
+          poster={posterUrl}
+          onTimeUpdate={notifyTimeUpdate}
+        />
+      )}
 
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-3">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           {clip.title}
         </h1>
-        <div className="text-muted-foreground flex flex-wrap items-center gap-3 text-sm">
-          <span className="flex items-center gap-1">
+        <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
+          <span className="flex items-center gap-1.5">
             <EyeIcon className="size-4" />
             {clip.views.toLocaleString()} views
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1.5">
             <HeartIcon className="size-4" />
             {clip.likes.toLocaleString()} likes
           </span>
-          <span className="bg-border/60 inline-block h-3 w-px" />
-          <div className="flex items-center gap-1">
-            <span>Owner</span>
-            <code className="bg-muted rounded px-1.5 py-0.5 text-xs">
+          {isPrivate ? (
+            <Badge
+              variant="secondary"
+              className="gap-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            >
+              <LockIcon className="size-3" />
+              {mistToSui(clip.priceMist)} SUI
+            </Badge>
+          ) : null}
+          <span className="bg-border/60 inline-block h-4 w-px" />
+          <div className="flex items-center gap-1.5">
+            <span>by</span>
+            <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
               {shortAddress(clip.owner)}
             </code>
             <CopyButton value={clip.owner} />
@@ -97,7 +116,7 @@ export function WatchView({ id }: WatchViewProps) {
       </header>
 
       {clip.description ? (
-        <p className="text-foreground/90 text-sm leading-relaxed whitespace-pre-wrap">
+        <p className="text-foreground/80 text-sm leading-relaxed whitespace-pre-wrap">
           {clip.description}
         </p>
       ) : null}
@@ -105,7 +124,11 @@ export function WatchView({ id }: WatchViewProps) {
       {clip.tags.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {clip.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="rounded-full">
+            <Badge
+              key={tag}
+              variant="outline"
+              className="text-muted-foreground rounded-full"
+            >
               #{tag}
             </Badge>
           ))}

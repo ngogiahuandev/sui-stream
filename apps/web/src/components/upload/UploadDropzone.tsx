@@ -13,7 +13,29 @@ interface UploadDropzoneProps {
 }
 
 const ACCEPT = ACCEPTED_VIDEO_MIME_TYPES.join(',');
-const MAX_MB = Math.round(CLIP_LIMITS.maxSizeBytes / (1024 * 1024));
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
+  }
+  return `${Math.round(bytes / (1024 * 1024))} MB`;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds >= 3600) {
+    const hours = seconds / 3600;
+    return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (seconds >= 60) {
+    const mins = Math.round(seconds / 60);
+    return `${mins} minute${mins === 1 ? '' : 's'}`;
+  }
+  return `${seconds} seconds`;
+}
+
+const MAX_SIZE_LABEL = formatBytes(CLIP_LIMITS.maxSizeBytes);
+const MAX_DURATION_LABEL = formatDuration(CLIP_LIMITS.maxDurationSeconds);
 
 export function UploadDropzone({
   onFileSelected,
@@ -89,8 +111,7 @@ export function UploadDropzone({
         {isProcessing ? 'Processing video…' : 'Drop a clip or browse'}
       </h3>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        MP4, MOV, or WebM up to {MAX_MB} MB. Max {CLIP_LIMITS.maxDurationSeconds}
-        {' '}seconds.
+        MP4, MOV, or WebM up to {MAX_SIZE_LABEL}. Max {MAX_DURATION_LABEL}.
       </p>
       <Button
         type="button"

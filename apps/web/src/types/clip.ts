@@ -8,8 +8,8 @@ export interface ClipFormValues {
 }
 
 export const CLIP_LIMITS = {
-  maxDurationSeconds: 60,
-  maxSizeBytes: 100 * 1024 * 1024,
+  maxDurationSeconds: 60 * 60,
+  maxSizeBytes: 1024 * 1024 * 1024,
   maxTitleLength: 80,
   maxDescriptionLength: 500,
   maxTags: 8,
@@ -34,7 +34,16 @@ export interface Clip {
   durationSeconds: number;
   visibility: ClipVisibility;
   priceMist: string;
+  sealIdHex: string;
   likes: number;
   views: number;
   createdAtMs: number;
+}
+
+export interface ClipAccess {
+  id: string;
+  clipId: string;
+  viewer: string;
+  unlockedAtMs: number;
+  paidMist: string;
 }

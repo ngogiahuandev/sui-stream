@@ -45,9 +45,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@seal-pass/eslint-config": "workspace:*",
-    "@seal-pass/prettier-config": "workspace:*",
-    "@seal-pass/typescript-config": "workspace:*",
+    "@sui-stream/eslint-config": "workspace:*",
+    "@sui-stream/prettier-config": "workspace:*",
+    "@sui-stream/typescript-config": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

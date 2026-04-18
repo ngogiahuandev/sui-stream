@@ -22,3 +22,19 @@ export const ACCEPTED_VIDEO_MIME_TYPES = [
   'video/webm',
   'video/x-matroska',
 ] as const;
+
+export interface Clip {
+  id: string;
+  owner: string;
+  title: string;
+  description: string;
+  tags: string[];
+  blobId: string;
+  thumbnailBlobId: string;
+  durationSeconds: number;
+  visibility: ClipVisibility;
+  priceMist: string;
+  likes: number;
+  views: number;
+  createdAtMs: number;
+}

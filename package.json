@@ -1,5 +1,5 @@
 {
-  "name": "seal-pass",
+  "name": "sui-stream",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -9,9 +9,9 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
-    "@seal-pass/eslint-config": "workspace:*",
-    "@seal-pass/prettier-config": "workspace:*",
-    "@seal-pass/typescript-config": "workspace:*",
+    "@sui-stream/eslint-config": "workspace:*",
+    "@sui-stream/prettier-config": "workspace:*",
+    "@sui-stream/typescript-config": "workspace:*",
     "eslint": "^9.25.0",
     "prettier": "^3.7.4",
     "prettier-plugin-tailwindcss": "^0.6.0",

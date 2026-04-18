@@ -1,5 +1,5 @@
 {
-  "name": "@seal-pass/typescript-config",
+  "name": "@sui-stream/typescript-config",
   "version": "0.0.0",
   "private": true,
   "main": "index.js",

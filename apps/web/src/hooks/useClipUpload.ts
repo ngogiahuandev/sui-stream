@@ -1,11 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import {
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+} from '@mysten/dapp-kit';
+import { useQueryClient } from '@tanstack/react-query';
 import { extractThumbnail, getVideoMetadata } from '@/lib/video-thumbnail';
 import type { VideoMetadata, VideoThumbnail } from '@/lib/video-thumbnail';
+import { uploadBlobToWalrus } from '@/lib/walrus';
+import { buildCreateClipTx } from '@/lib/sui';
 import {
   parseTags,
   uploadFormSchema,
@@ -14,7 +22,6 @@ import {
 import {
   ACCEPTED_VIDEO_MIME_TYPES,
   CLIP_LIMITS,
-  type ClipFormValues,
   type ClipVisibility,
 } from '@/types/clip';
 
@@ -51,6 +58,11 @@ function validateFile(file: File): string | null {
 }
 
 export function useClipUpload(): UseClipUploadResult {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const account = useCurrentAccount();
+  const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
+
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
     mode: 'onTouched',
@@ -157,36 +169,62 @@ export function useClipUpload(): UseClipUploadResult {
     async (values: UploadFormValues) => {
       if (!file || !thumbnail || !metadata) return;
 
-      const draft: ClipFormValues = {
-        title: values.title,
-        description: values.description,
-        tags: parseTags(values.tagsInput),
-        visibility,
-      };
+      if (!account) {
+        toast.error('Connect your wallet before publishing a clip.');
+        return;
+      }
 
       setIsSubmitting(true);
+      const submitToast = toast.loading('Uploading clip to Walrus…');
+
       try {
-        console.info('[upload] submit draft (UI-only stub)', {
-          draft,
-          file: {
-            name: file.name,
-            size: file.size,
-            type: file.type,
-          },
-          metadata,
-          thumbnail: {
-            width: thumbnail.width,
-            height: thumbnail.height,
-            timestampSeconds: thumbnail.timestampSeconds,
-            byteSize: thumbnail.blob.size,
-          },
+        const [videoUpload, thumbUpload] = await Promise.all([
+          uploadBlobToWalrus(file),
+          uploadBlobToWalrus(thumbnail.blob),
+        ]);
+
+        toast.loading('Publishing on Sui…', { id: submitToast });
+
+        const tx = buildCreateClipTx({
+          title: values.title.trim(),
+          description: values.description.trim(),
+          tags: parseTags(values.tagsInput),
+          blobId: videoUpload.blobId,
+          thumbnailBlobId: thumbUpload.blobId,
+          durationSeconds: Math.max(1, Math.round(metadata.durationSeconds)),
+          visibility,
         });
-        toast.success('Clip draft logged to console.');
+
+        // TODO(sponsor): swap to sponsored tx once the gas station is wired up.
+        await signAndExecute({ transaction: tx });
+
+        await queryClient.invalidateQueries({ queryKey: ['public-clips'] });
+
+        toast.success('Clip published!', { id: submitToast });
+        clearFile();
+        router.push('/dashboard/discover');
+      } catch (error) {
+        console.error('[upload] failed to publish clip', error);
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Could not publish your clip. Please try again.';
+        toast.error(message, { id: submitToast });
       } finally {
         setIsSubmitting(false);
       }
     },
-    [file, thumbnail, metadata, visibility]
+    [
+      file,
+      thumbnail,
+      metadata,
+      visibility,
+      account,
+      signAndExecute,
+      queryClient,
+      clearFile,
+      router,
+    ]
   );
 
   return {

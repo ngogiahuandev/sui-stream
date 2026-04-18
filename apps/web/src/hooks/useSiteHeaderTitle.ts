@@ -24,6 +24,7 @@ export function useSiteHeaderTitle(): string {
   return useMemo(() => {
     if (!pathname) return 'Dashboard';
     if (TITLE_MAP[pathname]) return TITLE_MAP[pathname];
+    if (pathname.startsWith('/dashboard/watch')) return 'Watch';
 
     const segment = pathname.split('/').filter(Boolean).pop();
     if (!segment) return 'Dashboard';

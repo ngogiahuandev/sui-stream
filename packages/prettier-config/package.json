@@ -1,5 +1,5 @@
 {
-  "name": "@seal-pass/prettier-config",
+  "name": "@sui-stream/prettier-config",
   "version": "0.0.0",
   "private": true,
   "main": "index.mjs",

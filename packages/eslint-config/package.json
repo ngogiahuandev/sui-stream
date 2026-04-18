@@ -1,5 +1,5 @@
 {
-  "name": "@seal-pass/eslint-config",
+  "name": "@sui-stream/eslint-config",
   "version": "0.0.0",
   "private": true,
   "main": "index.js",

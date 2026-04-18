@@ -8,7 +8,12 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -24,8 +29,13 @@ import {
   WalletIcon,
   CopyIcon,
   CheckIcon,
+  MonitorIcon,
+  MoonIcon,
+  PaletteIcon,
+  SunIcon,
 } from 'lucide-react';
 import { ConnectModal } from '@mysten/dapp-kit';
+import { useTheme } from 'next-themes';
 import { useWalletConnection } from '@/hooks/useWalletConnection';
 import { useSuiBalance } from '@/hooks/useSuiBalance';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
@@ -59,33 +69,84 @@ export function NavUser() {
   const { copy, copied } = useCopyToClipboard({
     successToast: 'Address copied',
   });
+  const { theme, setTheme } = useTheme();
+
+  const themeSubmenu = (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <PaletteIcon />
+        Theme
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        <DropdownMenuRadioGroup
+          value={theme ?? 'system'}
+          onValueChange={(value) => setTheme(value)}
+        >
+          <DropdownMenuRadioItem value="light">
+            <SunIcon />
+            Light
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">
+            <MoonIcon />
+            Dark
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system">
+            <MonitorIcon />
+            System
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
+  );
 
   if (!isConnected || !address || !displayAddress) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>
-          <ConnectModal
-            open={isModalOpen}
-            onOpenChange={setModalOpen}
-            trigger={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <SidebarMenuButton
                 size="lg"
                 disabled={isConnecting}
-                className="justify-start gap-3"
+                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground justify-start gap-3"
               >
                 <span className="bg-sidebar-accent text-sidebar-accent-foreground flex size-8 shrink-0 items-center justify-center">
                   <WalletIcon className="size-4" aria-hidden="true" />
                 </span>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">
-                    {isConnecting ? 'Connecting…' : 'Connect wallet'}
+                    {isConnecting ? 'Connecting…' : 'Guest'}
                   </span>
                   <span className="text-muted-foreground truncate text-xs">
-                    Sign in with Sui
+                    Not connected
                   </span>
                 </div>
+                <EllipsisVerticalIcon className="ml-auto size-4" />
               </SidebarMenuButton>
-            }
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-(--radix-dropdown-menu-trigger-width) min-w-60"
+              side={isMobile ? 'bottom' : 'right'}
+              align="end"
+              sideOffset={4}
+            >
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setModalOpen(true);
+                }}
+              >
+                <WalletIcon />
+                Connect wallet
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {themeSubmenu}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <ConnectModal
+            open={isModalOpen}
+            onOpenChange={setModalOpen}
+            trigger={<span className="hidden" aria-hidden="true" />}
           />
         </SidebarMenuItem>
       </SidebarMenu>
@@ -162,6 +223,8 @@ export function NavUser() {
                 {copied ? 'Copied' : 'Copy address'}
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            {themeSubmenu}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={disconnect}

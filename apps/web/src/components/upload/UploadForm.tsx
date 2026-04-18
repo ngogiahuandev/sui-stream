@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/field';
 import { UploadDropzone } from '@/components/upload/UploadDropzone';
 import { VideoPreview } from '@/components/upload/VideoPreview';
+import { UploadProgressOverlay } from '@/components/upload/UploadProgressOverlay';
 import { useClipUpload } from '@/hooks/useClipUpload';
 import { CLIP_LIMITS } from '@/types/clip';
 
@@ -30,9 +31,14 @@ export function UploadForm() {
   return (
     <form
       onSubmit={handleSubmit(upload.onSubmit)}
-      className="flex flex-col gap-6"
+      className="relative flex flex-col gap-6"
       noValidate
     >
+      <UploadProgressOverlay
+        open={upload.isSubmitting}
+        steps={upload.uploadSteps}
+      />
+
       {upload.file && upload.videoUrl ? (
         <VideoPreview
           videoUrl={upload.videoUrl}
@@ -41,7 +47,9 @@ export function UploadForm() {
           metadata={upload.metadata}
           thumbnail={upload.thumbnail}
           isProcessing={upload.isProcessing}
+          isGeneratingThumbnail={upload.isGeneratingThumbnail}
           onClear={upload.clearFile}
+          onGenerateThumbnail={upload.generateThumbnailWithAI}
         />
       ) : (
         <UploadDropzone
@@ -54,24 +62,21 @@ export function UploadForm() {
         <p className="text-destructive text-sm">{upload.validationError}</p>
       ) : null}
 
-      {upload.file && !upload.isGenerating && (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={upload.generateWithAI}
-          className="w-full gap-2"
-        >
+      <Button
+        type="button"
+        variant="default"
+        onClick={upload.generateWithAI}
+        disabled={
+          upload.isGeneratingThumbnail || !upload.file || upload.isSubmitting
+        }
+      >
+        {upload.isGenerating ? (
+          <Loader2Icon className="size-4 animate-spin" />
+        ) : (
           <SparklesIcon className="size-4" />
-          Generate title, description, tags with AI
-        </Button>
-      )}
-
-      {upload.isGenerating && (
-        <div className="bg-muted/30 flex items-center justify-center gap-2 rounded-2xl border p-4">
-          <Loader2Icon className="size-5 animate-spin" />
-          <span className="text-sm">Analyzing video with AI...</span>
-        </div>
-      )}
+        )}
+        <span>Generate title, description &amp; tags with AI</span>
+      </Button>
 
       <FieldSet disabled={!upload.file || upload.isGenerating}>
         <FieldGroup>
@@ -82,7 +87,7 @@ export function UploadForm() {
               placeholder="Give your clip a catchy title"
               maxLength={CLIP_LIMITS.maxTitleLength}
               aria-invalid={errors.title ? true : undefined}
-              disabled={upload.isGenerating}
+              disabled={upload.isGenerating || upload.isSubmitting}
               {...register('title')}
             />
             <div className="flex items-center justify-between gap-2">
@@ -101,7 +106,7 @@ export function UploadForm() {
               maxLength={CLIP_LIMITS.maxDescriptionLength}
               rows={4}
               aria-invalid={errors.description ? true : undefined}
-              disabled={upload.isGenerating}
+              disabled={upload.isGenerating || upload.isSubmitting}
               {...register('description')}
             />
             <div className="flex items-center justify-between gap-2">
@@ -120,7 +125,7 @@ export function UploadForm() {
               id="clip-tags"
               placeholder="comma, separated, tags"
               aria-invalid={errors.tagsInput ? true : undefined}
-              disabled={upload.isGenerating}
+              disabled={upload.isGenerating || upload.isSubmitting}
               {...register('tagsInput')}
             />
             <FieldError
@@ -133,7 +138,7 @@ export function UploadForm() {
       <div className="flex items-center justify-end gap-3 border-t pt-6">
         <Button
           type="button"
-          variant={'secondary'}
+          variant="secondary"
           onClick={upload.clearFile}
           disabled={
             !upload.file ||
@@ -147,7 +152,7 @@ export function UploadForm() {
         </Button>
         <Button
           type="submit"
-          variant={'default'}
+          variant="default"
           disabled={!upload.canSubmit || upload.isGenerating}
         >
           {upload.isSubmitting ? (

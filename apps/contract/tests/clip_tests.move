@@ -80,7 +80,7 @@ fun increment_views_and_likes() {
 
 #[test]
 #[expected_failure(abort_code = sui_stream::clip::EDurationTooLong)]
-fun rejects_clip_over_60_seconds() {
+fun rejects_clip_over_max_duration() {
     let mut scenario = ts::begin(CREATOR);
     let ctx = ts::ctx(&mut scenario);
     let clk = clock::create_for_testing(ctx);
@@ -91,7 +91,7 @@ fun rejects_clip_over_60_seconds() {
         vector::empty<string::String>(),
         string::utf8(b"blob"),
         string::utf8(b"thumb"),
-        61,
+        3601,
         CREATOR,
         &clk,
         ctx,

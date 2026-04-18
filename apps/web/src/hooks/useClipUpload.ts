@@ -21,12 +21,29 @@ import { uploadBlobToWalrus } from '@/lib/walrus';
 import { buildCreateClipTx } from '@/lib/sui';
 import { executeAsSponsor } from '@/lib/sponsor-client';
 import { SUI_STREAM_MODULE, SUI_STREAM_PACKAGE_ID } from '@/lib/constants';
+import { useExistingTags } from '@/hooks/useExistingTags';
 import {
   parseTags,
   uploadFormSchema,
   type UploadFormValues,
 } from '@/lib/validation/upload-schema';
 import { ACCEPTED_VIDEO_MIME_TYPES, CLIP_LIMITS } from '@/types/clip';
+
+export type UploadStepId = 'walrus' | 'publish' | 'index' | 'redirect';
+export type UploadStepStatus = 'pending' | 'active' | 'complete' | 'error';
+
+export interface UploadStep {
+  id: UploadStepId;
+  label: string;
+  status: UploadStepStatus;
+}
+
+const INITIAL_UPLOAD_STEPS: UploadStep[] = [
+  { id: 'walrus', label: 'Uploading video & thumbnail to Walrus', status: 'pending' },
+  { id: 'publish', label: 'Publishing clip on Sui', status: 'pending' },
+  { id: 'index', label: 'Indexing new clip', status: 'pending' },
+  { id: 'redirect', label: 'Redirecting to Discover', status: 'pending' },
+];
 
 export interface UseClipUploadResult {
   form: UseFormReturn<UploadFormValues>;
@@ -37,15 +54,68 @@ export interface UseClipUploadResult {
 
   isProcessing: boolean;
   isGenerating: boolean;
+  isGeneratingThumbnail: boolean;
   isSubmitting: boolean;
+  uploadSteps: UploadStep[];
   validationError: string | null;
   canSubmit: boolean;
 
   onFileSelected: (file: File | null) => Promise<void>;
   clearFile: () => void;
   generateWithAI: () => Promise<void>;
+  generateThumbnailWithAI: () => Promise<void>;
 
   onSubmit: (values: UploadFormValues) => Promise<void>;
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load generated image'));
+    img.src = dataUrl;
+  });
+}
+
+async function cropImageToAspect(
+  sourceDataUrl: string,
+  targetAspect: number,
+  mimeType = 'image/jpeg',
+  quality = 0.9
+): Promise<{ blob: Blob; dataUrl: string; width: number; height: number }> {
+  const img = await loadImage(sourceDataUrl);
+  const srcWidth = img.naturalWidth;
+  const srcHeight = img.naturalHeight;
+  const srcAspect = srcWidth / srcHeight;
+
+  let sx = 0;
+  let sy = 0;
+  let sw = srcWidth;
+  let sh = srcHeight;
+  if (srcAspect > targetAspect) {
+    sw = Math.round(srcHeight * targetAspect);
+    sx = Math.round((srcWidth - sw) / 2);
+  } else if (srcAspect < targetAspect) {
+    sh = Math.round(srcWidth / targetAspect);
+    sy = Math.round((srcHeight - sh) / 2);
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context is unavailable');
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+  const dataUrl = canvas.toDataURL(mimeType, quality);
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob returned null'))),
+      mimeType,
+      quality
+    );
+  });
+  return { blob, dataUrl, width: sw, height: sh };
 }
 
 function formatBytes(bytes: number): string {
@@ -87,6 +157,7 @@ export function useClipUpload(): UseClipUploadResult {
   const queryClient = useQueryClient();
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
+  const existingTags = useExistingTags();
 
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
@@ -106,8 +177,19 @@ export function useClipUpload(): UseClipUploadResult {
   const [frames, setFrames] = useState<VideoFrame[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadSteps, setUploadSteps] = useState<UploadStep[]>(INITIAL_UPLOAD_STEPS);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const setStepStatus = useCallback(
+    (id: UploadStepId, status: UploadStepStatus) => {
+      setUploadSteps((prev) =>
+        prev.map((step) => (step.id === id ? { ...step, status } : step))
+      );
+    },
+    []
+  );
 
   const videoUrlRef = useRef<string | null>(null);
 
@@ -199,6 +281,7 @@ export function useClipUpload(): UseClipUploadResult {
     Boolean(metadata) &&
     !isProcessing &&
     !isGenerating &&
+    !isGeneratingThumbnail &&
     !isSubmitting;
 
   const generateWithAI = useCallback(async () => {
@@ -214,6 +297,9 @@ export function useClipUpload(): UseClipUploadResult {
       const formData = new FormData();
       formData.append('frames', JSON.stringify(frames));
       formData.append('hasAudio', 'false');
+      if (existingTags.length > 0) {
+        formData.append('existingTags', JSON.stringify(existingTags));
+      }
 
       const response = await fetch('/api/generate-metadata', {
         method: 'POST',
@@ -244,7 +330,63 @@ export function useClipUpload(): UseClipUploadResult {
     } finally {
       setIsGenerating(false);
     }
-  }, [file, frames, form]);
+  }, [file, frames, form, existingTags]);
+
+  const generateThumbnailWithAI = useCallback(async () => {
+    if (!file || frames.length === 0 || !metadata) {
+      toast.error('No video selected');
+      return;
+    }
+
+    setIsGeneratingThumbnail(true);
+    const genToast = toast.loading('Generating thumbnail with AI...');
+
+    try {
+      const videoWidth = metadata.width || 16;
+      const videoHeight = metadata.height || 9;
+      const targetAspect = videoWidth / videoHeight;
+      const aspectLabel =
+        targetAspect < 0.9 ? '9:16' : targetAspect > 1.1 ? '16:9' : '1:1';
+
+      const formData = new FormData();
+      formData.append('frames', JSON.stringify(frames));
+      formData.append('title', form.getValues('title') ?? '');
+      formData.append('description', form.getValues('description') ?? '');
+      formData.append('aspectRatio', aspectLabel);
+      formData.append('aspectWidth', String(videoWidth));
+      formData.append('aspectHeight', String(videoHeight));
+
+      const response = await fetch('/api/generate-thumbnail', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.error || !result.dataUrl) {
+        throw new Error(result.error || 'Failed to generate thumbnail');
+      }
+
+      const cropped = await cropImageToAspect(result.dataUrl, targetAspect);
+
+      setThumbnail({
+        blob: cropped.blob,
+        dataUrl: cropped.dataUrl,
+        width: cropped.width,
+        height: cropped.height,
+        timestampSeconds: 0,
+      });
+
+      toast.success('Thumbnail generated!', { id: genToast });
+    } catch (error) {
+      console.error('[generate-thumbnail] failed:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to generate thumbnail',
+        { id: genToast }
+      );
+    } finally {
+      setIsGeneratingThumbnail(false);
+    }
+  }, [file, frames, metadata, form]);
 
   const onSubmit = useCallback(
     async (values: UploadFormValues) => {
@@ -255,17 +397,18 @@ export function useClipUpload(): UseClipUploadResult {
         return;
       }
 
+      setUploadSteps(INITIAL_UPLOAD_STEPS);
       setIsSubmitting(true);
-      const submitToast = toast.loading('Preparing upload…');
 
       try {
-        toast.loading('Uploading to Walrus…', { id: submitToast });
-
+        setStepStatus('walrus', 'active');
         const [videoUpload, thumbUpload] = await Promise.all([
           uploadBlobToWalrus(file),
           uploadBlobToWalrus(thumbnail.blob),
         ]);
+        setStepStatus('walrus', 'complete');
 
+        setStepStatus('publish', 'active');
         const tx = buildCreateClipTx({
           title: values.title.trim(),
           description: values.description.trim(),
@@ -275,24 +418,22 @@ export function useClipUpload(): UseClipUploadResult {
           durationSeconds: Math.max(1, Math.round(metadata.durationSeconds)),
           recipient: account.address,
         });
-
         const target = `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_clip`;
-
-        toast.loading('Publishing on Sui…', { id: submitToast });
-
         await executeAsSponsor({
           transaction: tx,
           client: suiClient,
           allowedMoveCallTargets: [target],
         });
+        setStepStatus('publish', 'complete');
 
-        toast.success('Clip published!', { id: submitToast });
-        clearFile();
-
+        setStepStatus('index', 'active');
         await new Promise((resolve) => setTimeout(resolve, 2500));
         await queryClient.refetchQueries({
           queryKey: ['public-clips', SUI_STREAM_PACKAGE_ID],
         });
+        setStepStatus('index', 'complete');
+
+        setStepStatus('redirect', 'active');
         router.push('/dashboard/discover');
       } catch (error) {
         console.error('[upload] failed to publish clip', error);
@@ -300,8 +441,12 @@ export function useClipUpload(): UseClipUploadResult {
           error instanceof Error
             ? error.message
             : 'Could not publish your clip. Please try again.';
-        toast.error(message, { id: submitToast });
-      } finally {
+        toast.error(message);
+        setUploadSteps((prev) =>
+          prev.map((step) =>
+            step.status === 'active' ? { ...step, status: 'error' } : step
+          )
+        );
         setIsSubmitting(false);
       }
     },
@@ -312,8 +457,8 @@ export function useClipUpload(): UseClipUploadResult {
       account,
       suiClient,
       queryClient,
-      clearFile,
       router,
+      setStepStatus,
     ]
   );
 
@@ -325,12 +470,15 @@ export function useClipUpload(): UseClipUploadResult {
     thumbnail,
     isProcessing,
     isGenerating,
+    isGeneratingThumbnail,
     isSubmitting,
+    uploadSteps,
     validationError,
     canSubmit,
     onFileSelected,
     clearFile,
     generateWithAI,
+    generateThumbnailWithAI,
     onSubmit,
   };
 }

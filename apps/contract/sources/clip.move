@@ -4,7 +4,7 @@ use std::string::{Self, String};
 use sui::clock::Clock;
 use sui::event;
 
-const MAX_DURATION_SECONDS: u64 = 60;
+const MAX_DURATION_SECONDS: u64 = 3600;
 const MAX_TITLE_LEN: u64 = 80;
 const MAX_DESCRIPTION_LEN: u64 = 500;
 const MAX_TAGS: u64 = 3;

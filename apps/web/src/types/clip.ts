@@ -5,8 +5,8 @@ export interface ClipFormValues {
 }
 
 export const CLIP_LIMITS = {
-  maxDurationSeconds: 60,
-  maxSizeBytes: 100 * 1024 * 1024,
+  maxDurationSeconds: 3600,
+  maxSizeBytes: 1024 * 1024 * 1024,
   maxTitleLength: 80,
   maxDescriptionLength: 500,
   maxTags: 3,

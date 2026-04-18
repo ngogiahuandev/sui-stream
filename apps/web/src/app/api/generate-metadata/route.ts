@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const framesJson = formData.get('frames') as string;
   const hasAudio = formData.get('hasAudio') === 'true';
+  const existingTagsJson = formData.get('existingTags') as string | null;
 
   if (!framesJson) {
     return Response.json({ error: 'Missing frames data' }, { status: 400 });
@@ -44,13 +45,34 @@ export async function POST(request: Request) {
     return Response.json({ error: 'No frames provided' }, { status: 400 });
   }
 
+  let existingTags: string[] = [];
+  if (existingTagsJson) {
+    try {
+      const parsed = JSON.parse(existingTagsJson);
+      if (Array.isArray(parsed)) {
+        existingTags = parsed
+          .filter((t): t is string => typeof t === 'string')
+          .map((t) => t.toLowerCase().trim())
+          .filter((t) => t.length > 0 && t.length <= 24)
+          .slice(0, 50);
+      }
+    } catch {
+      existingTags = [];
+    }
+  }
+
   const frameDescriptions = frames
     .map((f) => `@${f.timestampSeconds}s`)
     .join(', ');
 
+  const existingTagsBlock =
+    existingTags.length > 0
+      ? `\n\nEXISTING TAGS ON THE PLATFORM (reuse when relevant — this keeps the tag catalog small):\n${existingTags.join(', ')}\n\nTAG SELECTION STRATEGY:\n- If any existing tag clearly matches the video's subject or category, REUSE it verbatim (prefer reuse over invention).\n- You may mix reused tags with up to 1 new tag ONLY if no existing tag fits that aspect.\n- Do NOT invent near-duplicates of existing tags (e.g., if "cooking" exists, do not emit "cook" or "cooking-food"; reuse "cooking").\n- Do NOT pick existing tags that are irrelevant just to reuse them.`
+      : '';
+
   const prompt = `Analyze this video frames at: ${frameDescriptions}.${
     hasAudio ? ' The video also has audio content.' : ''
-  }\n\nGenerate a catchy title (max 80 chars), description (max 500 chars), and exactly 3 general tags. Be creative and descriptive based on the visual content.\n\nTAGS RULES:\n- All tags must be lowercase only\n- Use hyphen (-) instead of space for multi-word tags (e.g., "street-food" not "street food")\n- Must be general/categorization tags, not specific (e.g., "nature", "dance", "comedy" not "my-dog-buddy")\n- Exactly 3 tags only\n\nRespond in this exact JSON format:
+  }\n\nGenerate a catchy title (max 80 chars), description (max 500 chars), and exactly 3 general tags. Be creative and descriptive based on the visual content.\n\nTAGS RULES:\n- All tags must be lowercase only\n- Use hyphen (-) instead of space for multi-word tags (e.g., "street-food" not "street food")\n- Must be general/categorization tags, not specific (e.g., "nature", "dance", "comedy" not "my-dog-buddy")\n- Exactly 3 tags only${existingTagsBlock}\n\nRespond in this exact JSON format:
 {"title": "...", "description": "...", "tags": ["tag1", "tag2", "tag3"]}`;
 
   try {

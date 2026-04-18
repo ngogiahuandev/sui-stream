@@ -1,6 +1,7 @@
 import { Logo } from '@/components/layout/Logo';
 import { HeaderNav } from '@/components/layout/HeaderNav';
 import { ConnectWalletButton } from '@/components/layout/ConnectWalletButton';
+import { ThemeToggle } from '@/components/common/ThemeToggle';
 
 export function Header() {
   return (
@@ -14,7 +15,8 @@ export function Header() {
           <HeaderNav />
         </div>
 
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <ThemeToggle />
           <ConnectWalletButton />
         </div>
       </div>

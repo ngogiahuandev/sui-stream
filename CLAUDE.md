@@ -47,17 +47,20 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 ### Key Functions
 
 - `create_clip(...)` — Mint a new Clip object (validate duration ≤ 60s)
-- `like_clip(clip: &mut Clip)` — Increment likes
+- `vote_clip(clip: &mut Clip, vote_type: u8)` — Cast upvote (+1) or downvote (-1), replace previous vote
+- `remove_vote(clip: &mut Clip)` — Remove vote
 - `increment_views(clip: &mut Clip)` — Increment view count
 - `update_metadata(clip: &mut Clip, title: String, description: String, tags: vector<String>)` — Set AI-generated metadata
-- `create_profile(...)` — Create user profile
+- `create_profile(username: String, bio: String, avatar_blob_id: String)` — Create user profile
+- `follow_creator(creator: address)` — Follow a creator
+- `unfollow_creator(creator: address)` — Unfollow a creator
 - `delete_clip(clip: Clip)` — Burn clip object (owner only)
 
 ### Conventions
 
 - All entry functions should use `entry fun` with proper capability checks
 - Use `tx_context::sender(ctx)` for ownership verification
-- Emit events for indexing: `ClipCreated`, `ClipLiked`, `ClipViewed`, `VideoUnlocked`
+- Emit events for indexing: `ClipCreated`, `ClipVoted`, `ClipViewed`, `ProfileCreated`, `Followed`, `Unfollowed`, `ClipUnlocked`
 - Package ID stored in `lib/constants.ts` — update after each deploy
 - Use **Sponsored Transactions** for all user operations (no gas fees for users)
 
@@ -170,6 +173,19 @@ Home feed: query indexer for recent clips, sorted by created_at
 - Extract 3-5 keyframes evenly distributed for AI metadata generation
 - Compress/transcode if needed using FFmpeg.wasm (only if file > 50MB)
 
+### Video Experience
+
+- **Like/Dislike (Vote):** Replace single like with upvote/downvote system. Store vote state per user, show net vote count. See `guides/VOTE.md`.
+- **Comments & Replies:** Threaded comments with replies. Off-chain storage in indexer. See `guides/COMMENT.md`.
+- **Subscribe/Follow:** Users follow creators, see "Following" feed. Profile creation required. See `guides/SUBSCRIBE.md`.
+- **Watch History:** Track watch progress per user, local + optional sync. Resume from last position. See `guides/WATCH_HISTORY.md`.
+- **Recommended Videos:** Tag-based similarity + view-based popularity + watch history affinity + following boost. See `guides/RECOMMENDATIONS.md`.
+- **Video Resume:** Store last position per clip, show resume overlay, auto-seek on play. See `guides/VIDEO_RESUME.md`.
+
+### Creator Tools
+
+- **Creator Dashboard:** Analytics showing views, watch time, earnings (future). Aggregate from on-chain events. See `guides/CREATOR_DASHBOARD.md`.
+
 ### Walrus Integration
 
 - Upload via Walrus Publisher HTTP API (PUT /v1/blobs)
@@ -220,7 +236,7 @@ pnpm lint
 
 ## Do Not
 
-- Do NOT add features beyond MVP scope (no comments, no playlists, no live streaming)
+- Do NOT add features beyond video experience + creator tools scope (no live streaming)
 - Do NOT use `any` type in TypeScript
 - Do NOT store video files on-chain — only metadata and blob references
 - Do NOT call AI APIs from the client — always proxy through Next.js API routes using Vercel AI SDK

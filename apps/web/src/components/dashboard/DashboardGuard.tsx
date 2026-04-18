@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { LoadingScreen } from '@/components/common/LoadingScreen';
 import { useWalletConnection } from '@/hooks/useWalletConnection';
 
-export const WALLET_REQUIRED_PATH = '/wallet-required';
+export const HOME_PATH = '/';
 
 interface DashboardGuardProps {
   children: ReactNode;
@@ -28,7 +28,7 @@ export function DashboardGuard({ children }: DashboardGuardProps) {
 
   useEffect(() => {
     if (!isConnecting && !isConnected) {
-      router.replace(WALLET_REQUIRED_PATH);
+      router.replace(HOME_PATH);
     }
   }, [isConnected, isConnecting, router]);
 

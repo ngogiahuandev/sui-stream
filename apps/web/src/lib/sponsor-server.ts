@@ -15,7 +15,7 @@ const DEFAULT_GAS_BUDGET = 100_000_000n;
 const ALLOWED_TARGETS = new Set(
   PACKAGE_ID
     ? [
-        `${PACKAGE_ID}::clip::create_public_clip`,
+        `${PACKAGE_ID}::clip::create_clip`,
         `${PACKAGE_ID}::clip::increment_views`,
         `${PACKAGE_ID}::clip::like_clip`,
       ]

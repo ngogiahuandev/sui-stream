@@ -1,23 +1,21 @@
 'use client';
 
+import { useCallback, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeftIcon, EyeIcon, HeartIcon } from 'lucide-react';
+import { ArrowLeftIcon, CalendarIcon, EyeIcon, HeartIcon } from 'lucide-react';
+import { formatDistanceToNowStrict } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CopyButton } from '@/components/common/CopyButton';
 import { VideoPlayer } from '@/components/watch/VideoPlayer';
+import { ClipOwnerCard } from '@/components/watch/ClipOwnerCard';
 import { useClip } from '@/hooks/useClip';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { getWalrusBlobUrl } from '@/lib/walrus';
+import { isPortraitVideo } from '@/lib/video-aspect';
 
 interface WatchViewProps {
   id: string;
-}
-
-function shortAddress(address: string): string {
-  if (address.length <= 12) return address;
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
 export function WatchView({ id }: WatchViewProps) {
@@ -26,6 +24,17 @@ export function WatchView({ id }: WatchViewProps) {
     clipId: clip?.id,
     durationSeconds: clip?.durationSeconds,
   });
+  const [dimensions, setDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+
+  const handleDimensionsDetected = useCallback(
+    (width: number, height: number) => {
+      setDimensions({ width, height });
+    },
+    []
+  );
 
   if (isLoading) {
     return (
@@ -55,26 +64,33 @@ export function WatchView({ id }: WatchViewProps) {
   }
 
   const posterUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
+  const isPortrait = isPortraitVideo(dimensions?.width, dimensions?.height);
 
-  return (
-    <section className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-6">
-      <Button asChild size="sm" variant="ghost" className="gap-1.5 self-start">
-        <Link href="/dashboard/discover">
-          <ArrowLeftIcon className="size-4" />
-          Back
-        </Link>
-      </Button>
+  const backButton = (
+    <Button asChild size="sm" variant="ghost" className="gap-1.5 self-start">
+      <Link href="/dashboard/discover">
+        <ArrowLeftIcon className="size-4" />
+        Back
+      </Link>
+    </Button>
+  );
 
-      <VideoPlayer
-        src={getWalrusBlobUrl(clip.blobId)}
-        poster={posterUrl}
-        onTimeUpdate={notifyTimeUpdate}
-      />
+  const videoPlayer = (
+    <VideoPlayer
+      src={getWalrusBlobUrl(clip.blobId)}
+      poster={posterUrl}
+      onTimeUpdate={notifyTimeUpdate}
+      onDimensionsDetected={handleDimensionsDetected}
+    />
+  );
 
+  const details = (
+    <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-3">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           {clip.title}
         </h1>
+        <ClipOwnerCard owner={clip.owner} />
         <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
             <EyeIcon className="size-4" />
@@ -84,14 +100,17 @@ export function WatchView({ id }: WatchViewProps) {
             <HeartIcon className="size-4" />
             {clip.likes.toLocaleString()} likes
           </span>
-          <span className="bg-border/60 inline-block h-4 w-px" />
-          <div className="flex items-center gap-1.5">
-            <span>by</span>
-            <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
-              {shortAddress(clip.owner)}
-            </code>
-            <CopyButton value={clip.owner} />
-          </div>
+          {Number.isFinite(clip.createdAtMs) && clip.createdAtMs > 0 ? (
+            <span
+              className="flex items-center gap-1.5"
+              title={new Date(clip.createdAtMs).toLocaleString()}
+            >
+              <CalendarIcon className="size-4" />
+              {formatDistanceToNowStrict(new Date(clip.createdAtMs), {
+                addSuffix: true,
+              })}
+            </span>
+          ) : null}
         </div>
       </header>
 
@@ -114,6 +133,28 @@ export function WatchView({ id }: WatchViewProps) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+
+  if (isPortrait) {
+    return (
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-6">
+        {backButton}
+        <div className="grid gap-6 md:grid-cols-[1fr_1.5fr]">
+          <div className="grid-cols-1 md:sticky md:top-4 md:self-start">
+            {videoPlayer}
+          </div>
+          <div className="grid-cols-2">{details}</div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-6">
+      {backButton}
+      {videoPlayer}
+      {details}
     </section>
   );
 }

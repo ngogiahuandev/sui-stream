@@ -14,6 +14,13 @@ import { ClipGridSkeleton } from '@/components/clips/ClipGridSkeleton';
 import { CopyButton } from '@/components/common/CopyButton';
 import { useUserClips } from '@/hooks/useUserClips';
 import { SUI_STREAM_PACKAGE_ID } from '@/lib/constants';
+import {
+  Card,
+  CardAction,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 interface UserViewProps {
   address: string;
@@ -50,45 +57,47 @@ export function UserView({ address }: UserViewProps) {
         </Link>
       </Button>
 
-      <header className="bg-muted/20 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-5">
-        <div className="flex min-w-0 items-center gap-4">
-          <Avatar
-            address={address}
-            className="size-14 shrink-0 overflow-hidden rounded-full"
-          />
-          <div className="flex min-w-0 flex-col gap-1">
-            <div className="flex items-center gap-2">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="flex min-w-0 items-center gap-4">
+            <Avatar
+              address={address}
+              className="size-12 shrink-0 overflow-hidden rounded-full"
+            />
+            <div className="flex min-w-0 items-center gap-2">
               <code
-                className="bg-muted rounded-full px-2 py-0.5 font-mono text-xs"
+                className="bg-muted truncate rounded-full px-2 py-0.5 font-mono text-xs"
                 title={address}
               >
                 {shortAddress(address)}
               </code>
               <CopyButton value={address} label="Copy address" />
             </div>
-            <span className="text-muted-foreground text-sm">
-              {isLoading
-                ? 'Loading clips…'
-                : clips.length === 1
-                  ? '1 published clip'
-                  : `${clips.length} published clips`}
-            </span>
-          </div>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={refetch}
-          disabled={isFetching}
-          className="gap-1.5"
-        >
-          <RefreshCwIcon
-            className={isFetching ? 'size-3.5 animate-spin' : 'size-3.5'}
-          />
-          Refresh
-        </Button>
-      </header>
+          </CardTitle>
+          <CardDescription>
+            {isLoading
+              ? 'Loading clips…'
+              : clips.length === 1
+                ? '1 published clip'
+                : `${clips.length} published clips`}
+          </CardDescription>
+          <CardAction>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={refetch}
+              disabled={isFetching}
+              className="gap-1.5"
+            >
+              <RefreshCwIcon
+                className={isFetching ? 'size-3.5 animate-spin' : 'size-3.5'}
+              />
+              Refresh
+            </Button>
+          </CardAction>
+        </CardHeader>
+      </Card>
 
       {isLoading ? (
         <ClipGridSkeleton />

@@ -18,18 +18,14 @@ function StepIcon({ status }: { status: UploadStep['status'] }) {
         initial={{ scale: 0.4, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 420, damping: 18 }}
-        className="bg-primary text-primary-foreground flex size-7 shrink-0 items-center justify-center rounded-full shadow shadow-primary/30"
+        className="bg-primary text-primary-foreground shadow-primary/30 flex size-7 shrink-0 items-center justify-center rounded-full shadow"
       >
         <CheckIcon className="size-4" />
       </motion.span>
     );
   }
   if (status === 'active') {
-    return (
-      <span className="border-primary text-primary flex size-7 shrink-0 items-center justify-center rounded-full border-2">
-        <Loader2Icon className="size-3.5 animate-spin" />
-      </span>
-    );
+    return <Loader2Icon className="text-primary size-7 animate-spin" />;
   }
   if (status === 'error') {
     return (
@@ -43,7 +39,10 @@ function StepIcon({ status }: { status: UploadStep['status'] }) {
   );
 }
 
-export function UploadProgressOverlay({ open, steps }: UploadProgressOverlayProps) {
+export function UploadProgressOverlay({
+  open,
+  steps,
+}: UploadProgressOverlayProps) {
   if (!open) return null;
 
   const activeIndex = steps.findIndex((s) => s.status === 'active');
@@ -64,7 +63,7 @@ export function UploadProgressOverlay({ open, steps }: UploadProgressOverlayProp
         className="bg-card/90 border-border w-full max-w-md rounded-2xl border p-6 shadow-2xl"
       >
         <div className="mb-5 flex flex-col gap-1">
-          <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
+          <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
             Publishing your clip
           </span>
           <span className="text-lg font-semibold">

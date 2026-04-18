@@ -13,6 +13,7 @@ import { useClip } from '@/hooks/useClip';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 import { isPortraitVideo } from '@/lib/video-aspect';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface WatchViewProps {
   id: string;
@@ -121,17 +122,19 @@ export function WatchView({ id }: WatchViewProps) {
       ) : null}
 
       {clip.tags.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {clip.tags.map((tag) => (
-            <Badge
-              key={tag}
-              variant="outline"
-              className="text-muted-foreground rounded-full"
-            >
-              #{tag}
-            </Badge>
-          ))}
-        </div>
+        <ScrollArea className="w-full">
+          <div className="scrollbar-hide flex gap-2 overflow-x-auto">
+            {clip.tags.map((tag) => (
+              <Badge
+                key={tag}
+                variant="outline"
+                className="shrink-0 rounded-full"
+              >
+                #{tag}
+              </Badge>
+            ))}
+          </div>
+        </ScrollArea>
       ) : null}
     </div>
   );

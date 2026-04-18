@@ -58,12 +58,12 @@ function TagFilterBar({
   const isSelected = (tag: string) => selectedTags.includes(tag);
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="scrollbar-hide flex gap-2 overflow-x-auto">
       {availableTags.map((tag) => (
         <Badge
           key={tag}
           variant={isSelected(tag) ? 'default' : 'outline'}
-          className="cursor-pointer"
+          className="shrink-0 cursor-pointer px-3 py-2 text-sm"
           onClick={() => (isSelected(tag) ? onTagRemove(tag) : onTagClick(tag))}
         >
           {tag}
@@ -164,7 +164,7 @@ export function DiscoverView() {
   }
 
   return (
-    <section className="flex flex-col gap-6 p-4 md:p-6">
+    <section className="flex flex-col gap-4 p-4 md:p-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button

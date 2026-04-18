@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
+import { useSuiClient } from '@mysten/dapp-kit';
 import { buildIncrementViewsTx } from '@/lib/sui';
 import { executeAsSponsor } from '@/lib/sponsor-client';
 import {
@@ -10,6 +10,7 @@ import {
 } from '@/lib/constants';
 
 const VIEW_THRESHOLD_RATIO = 2 / 3;
+const MAX_TIMEUPDATE_DELTA_SECONDS = 1.5;
 
 const sessionFiredClips = new Set<string>();
 
@@ -28,29 +29,39 @@ export function useIncrementViews({
   durationSeconds,
   enabled = true,
 }: UseIncrementViewsOptions): UseIncrementViewsResult {
-  const account = useCurrentAccount();
   const suiClient = useSuiClient();
   const firingRef = useRef(false);
+  const lastTimeRef = useRef<number | null>(null);
+  const watchedRef = useRef(0);
   const [hasFired, setHasFired] = useState(false);
 
   useEffect(() => {
-    if (clipId) {
-      firingRef.current = false;
-      setHasFired(false);
-    }
+    if (!clipId) return;
+    firingRef.current = false;
+    lastTimeRef.current = null;
+    watchedRef.current = 0;
+    setHasFired(false);
   }, [clipId]);
 
   const notifyTimeUpdate = useCallback(
     (currentTime: number) => {
       if (!enabled) return;
       if (!clipId) return;
-      if (!account) return;
-      if (!durationSeconds) return;
+      if (!durationSeconds || durationSeconds <= 0) return;
       if (firingRef.current || hasFired) return;
       if (sessionFiredClips.has(clipId)) return;
 
+      const last = lastTimeRef.current;
+      if (last !== null) {
+        const delta = currentTime - last;
+        if (delta > 0 && delta <= MAX_TIMEUPDATE_DELTA_SECONDS) {
+          watchedRef.current += delta;
+        }
+      }
+      lastTimeRef.current = currentTime;
+
       const threshold = durationSeconds * VIEW_THRESHOLD_RATIO;
-      if (currentTime < threshold) return;
+      if (watchedRef.current < threshold) return;
 
       firingRef.current = true;
       sessionFiredClips.add(clipId);
@@ -70,7 +81,7 @@ export function useIncrementViews({
         setHasFired(false);
       });
     },
-    [enabled, clipId, account, durationSeconds, suiClient, hasFired]
+    [enabled, clipId, durationSeconds, suiClient, hasFired]
   );
 
   return { notifyTimeUpdate };

@@ -1,18 +1,11 @@
 'use client';
 
-import {
-  GlobeIcon,
-  LockIcon,
-  Loader2Icon,
-  Ban,
-  UploadCloudIcon,
-} from 'lucide-react';
+import { Loader2Icon, Ban, UploadCloudIcon, SparklesIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -22,21 +15,17 @@ import { UploadDropzone } from '@/components/upload/UploadDropzone';
 import { VideoPreview } from '@/components/upload/VideoPreview';
 import { useClipUpload } from '@/hooks/useClipUpload';
 import { CLIP_LIMITS } from '@/types/clip';
-import { cn } from '@/lib/utils';
 
 export function UploadForm() {
   const upload = useClipUpload();
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors },
   } = upload.form;
 
-  const title = watch('title') ?? '';
-  const description = watch('description') ?? '';
-  const visibility = watch('visibility');
+  const title = upload.form.watch('title') ?? '';
+  const description = upload.form.watch('description') ?? '';
 
   return (
     <form
@@ -65,7 +54,26 @@ export function UploadForm() {
         <p className="text-destructive text-sm">{upload.validationError}</p>
       ) : null}
 
-      <FieldSet disabled={!upload.file}>
+      {upload.file && !upload.isGenerating && (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={upload.generateWithAI}
+          className="w-full gap-2"
+        >
+          <SparklesIcon className="size-4" />
+          Generate title, description, tags with AI
+        </Button>
+      )}
+
+      {upload.isGenerating && (
+        <div className="bg-muted/30 flex items-center justify-center gap-2 rounded-2xl border p-4">
+          <Loader2Icon className="size-5 animate-spin" />
+          <span className="text-sm">Analyzing video with AI...</span>
+        </div>
+      )}
+
+      <FieldSet disabled={!upload.file || upload.isGenerating}>
         <FieldGroup>
           <Field data-invalid={errors.title ? true : undefined}>
             <FieldLabel htmlFor="clip-title">Title</FieldLabel>
@@ -74,6 +82,7 @@ export function UploadForm() {
               placeholder="Give your clip a catchy title"
               maxLength={CLIP_LIMITS.maxTitleLength}
               aria-invalid={errors.title ? true : undefined}
+              disabled={upload.isGenerating}
               {...register('title')}
             />
             <div className="flex items-center justify-between gap-2">
@@ -92,6 +101,7 @@ export function UploadForm() {
               maxLength={CLIP_LIMITS.maxDescriptionLength}
               rows={4}
               aria-invalid={errors.description ? true : undefined}
+              disabled={upload.isGenerating}
               {...register('description')}
             />
             <div className="flex items-center justify-between gap-2">
@@ -110,88 +120,13 @@ export function UploadForm() {
               id="clip-tags"
               placeholder="comma, separated, tags"
               aria-invalid={errors.tagsInput ? true : undefined}
+              disabled={upload.isGenerating}
               {...register('tagsInput')}
             />
-            <FieldDescription>
-              Up to {CLIP_LIMITS.maxTags} tags. Separate with commas.
-            </FieldDescription>
             <FieldError
               errors={errors.tagsInput ? [errors.tagsInput] : undefined}
             />
           </Field>
-
-          <Field>
-            <FieldLabel>Visibility</FieldLabel>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() =>
-                  setValue('visibility', 'public', { shouldValidate: true })
-                }
-                className={cn(
-                  'flex items-start gap-3 rounded-2xl border p-4 text-left transition',
-                  visibility === 'public'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:bg-muted/50'
-                )}
-              >
-                <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-xl">
-                  <GlobeIcon className="size-4" />
-                </span>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">Public</span>
-                  <span className="text-muted-foreground text-xs">
-                    Anyone can watch for free.
-                  </span>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setValue('visibility', 'private', { shouldValidate: true })
-                }
-                className={cn(
-                  'flex items-start gap-3 rounded-2xl border p-4 text-left transition',
-                  visibility === 'private'
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:bg-muted/50'
-                )}
-              >
-                <span className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-xl">
-                  <LockIcon className="size-4" />
-                </span>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium">Private (paid)</span>
-                  <span className="text-muted-foreground text-xs">
-                    Encrypted with Seal. Viewers pay SUI to unlock.
-                  </span>
-                </div>
-              </button>
-            </div>
-          </Field>
-
-          {visibility === 'private' ? (
-            <Field data-invalid={errors.priceSui ? true : undefined}>
-              <FieldLabel htmlFor="clip-price">Unlock price (SUI)</FieldLabel>
-              <Input
-                id="clip-price"
-                type="number"
-                inputMode="decimal"
-                step="0.001"
-                min="0.001"
-                placeholder="0.5"
-                aria-invalid={errors.priceSui ? true : undefined}
-                {...register('priceSui')}
-              />
-              <FieldDescription>
-                Viewers pay this amount in SUI to unlock the clip. Min 0.001
-                SUI.
-              </FieldDescription>
-              <FieldError
-                errors={errors.priceSui ? [errors.priceSui] : undefined}
-              />
-            </Field>
-          ) : null}
         </FieldGroup>
       </FieldSet>
 
@@ -200,12 +135,21 @@ export function UploadForm() {
           type="button"
           variant={'secondary'}
           onClick={upload.clearFile}
-          disabled={!upload.file || upload.isProcessing || upload.isSubmitting}
+          disabled={
+            !upload.file ||
+            upload.isProcessing ||
+            upload.isGenerating ||
+            upload.isSubmitting
+          }
         >
           <Ban className="size-4" />
           Cancel
         </Button>
-        <Button type="submit" variant={'default'} disabled={!upload.canSubmit}>
+        <Button
+          type="submit"
+          variant={'default'}
+          disabled={!upload.canSubmit || upload.isGenerating}
+        >
           {upload.isSubmitting ? (
             <Loader2Icon className="size-4 animate-spin" />
           ) : (

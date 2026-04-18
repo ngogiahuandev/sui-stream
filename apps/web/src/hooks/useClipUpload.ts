@@ -5,30 +5,28 @@ import { useRouter } from 'next/navigation';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import {
-  useCurrentAccount,
-  useSignAndExecuteTransaction,
-  useSuiClient,
-} from '@mysten/dapp-kit';
+import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
-import { extractThumbnail, getVideoMetadata } from '@/lib/video-thumbnail';
-import type { VideoMetadata, VideoThumbnail } from '@/lib/video-thumbnail';
+import {
+  extractThumbnail,
+  extractFramesAtIntervals,
+  getVideoMetadata,
+} from '@/lib/video-thumbnail';
+import type {
+  VideoMetadata,
+  VideoThumbnail,
+  VideoFrame,
+} from '@/lib/video-thumbnail';
 import { uploadBlobToWalrus } from '@/lib/walrus';
 import { buildCreateClipTx } from '@/lib/sui';
-import { createSealClient, encryptClipBytes } from '@/lib/seal';
 import { executeAsSponsor } from '@/lib/sponsor-client';
 import { SUI_STREAM_MODULE, SUI_STREAM_PACKAGE_ID } from '@/lib/constants';
 import {
   parseTags,
-  suiToMist,
   uploadFormSchema,
   type UploadFormValues,
 } from '@/lib/validation/upload-schema';
-import {
-  ACCEPTED_VIDEO_MIME_TYPES,
-  CLIP_LIMITS,
-  type ClipVisibility,
-} from '@/types/clip';
+import { ACCEPTED_VIDEO_MIME_TYPES, CLIP_LIMITS } from '@/types/clip';
 
 export interface UseClipUploadResult {
   form: UseFormReturn<UploadFormValues>;
@@ -36,15 +34,16 @@ export interface UseClipUploadResult {
   videoUrl: string | null;
   metadata: VideoMetadata | null;
   thumbnail: VideoThumbnail | null;
-  visibility: ClipVisibility;
 
   isProcessing: boolean;
+  isGenerating: boolean;
   isSubmitting: boolean;
   validationError: string | null;
   canSubmit: boolean;
 
   onFileSelected: (file: File | null) => Promise<void>;
   clearFile: () => void;
+  generateWithAI: () => Promise<void>;
 
   onSubmit: (values: UploadFormValues) => Promise<void>;
 }
@@ -89,9 +88,6 @@ export function useClipUpload(): UseClipUploadResult {
   const account = useCurrentAccount();
   const suiClient = useSuiClient();
 
-  const { mutateAsync: signAndExecuteTransaction } =
-    useSignAndExecuteTransaction();
-
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
     mode: 'onTouched',
@@ -100,18 +96,16 @@ export function useClipUpload(): UseClipUploadResult {
       title: '',
       description: '',
       tagsInput: '',
-      visibility: 'public',
-      priceSui: '',
     },
   });
-
-  const visibility = form.watch('visibility');
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
   const [thumbnail, setThumbnail] = useState<VideoThumbnail | null>(null);
+  const [frames, setFrames] = useState<VideoFrame[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -132,6 +126,7 @@ export function useClipUpload(): UseClipUploadResult {
     setVideoUrl(null);
     setMetadata(null);
     setThumbnail(null);
+    setFrames([]);
     setValidationError(null);
   }, []);
 
@@ -141,8 +136,6 @@ export function useClipUpload(): UseClipUploadResult {
       title: '',
       description: '',
       tagsInput: '',
-      visibility: 'public',
-      priceSui: '',
     });
   }, [resetFileState, form]);
 
@@ -179,12 +172,16 @@ export function useClipUpload(): UseClipUploadResult {
           return;
         }
 
-        const frame = await extractThumbnail(nextFile);
+        const [frame, extractedFrames] = await Promise.all([
+          extractThumbnail(nextFile),
+          extractFramesAtIntervals(nextFile),
+        ]);
 
         setFile(nextFile);
         setVideoUrl(nextUrl);
         setMetadata(probed);
         setThumbnail(frame);
+        setFrames(extractedFrames);
       } catch (error) {
         console.error('[upload] failed to process video', error);
         toast.error('Could not read this video file. Try another clip.');
@@ -201,7 +198,53 @@ export function useClipUpload(): UseClipUploadResult {
     Boolean(thumbnail) &&
     Boolean(metadata) &&
     !isProcessing &&
+    !isGenerating &&
     !isSubmitting;
+
+  const generateWithAI = useCallback(async () => {
+    if (!file || frames.length === 0) {
+      toast.error('No video selected');
+      return;
+    }
+
+    setIsGenerating(true);
+    const genToast = toast.loading('Analyzing video with AI...');
+
+    try {
+      const formData = new FormData();
+      formData.append('frames', JSON.stringify(frames));
+      formData.append('hasAudio', 'false');
+
+      const response = await fetch('/api/generate-metadata', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        throw new Error(result.error || 'Failed to generate metadata');
+      }
+
+      form.setValue('title', result.title || '', { shouldValidate: true });
+      form.setValue('description', result.description || '', {
+        shouldValidate: true,
+      });
+      form.setValue('tagsInput', (result.tags || []).join(', '), {
+        shouldValidate: true,
+      });
+
+      toast.success('Metadata generated!', { id: genToast });
+    } catch (error) {
+      console.error('[generate-ai] failed:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to generate with AI',
+        { id: genToast }
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [file, frames, form]);
 
   const onSubmit = useCallback(
     async (values: UploadFormValues) => {
@@ -216,31 +259,10 @@ export function useClipUpload(): UseClipUploadResult {
       const submitToast = toast.loading('Preparing upload…');
 
       try {
-        const isPrivate = values.visibility === 'private';
-
-        let priceMist: bigint | undefined;
-        let sealIdBytes: Uint8Array | undefined;
-        let videoPayload: Blob = file;
-
-        if (isPrivate) {
-          priceMist = suiToMist(values.priceSui ?? '');
-
-          toast.loading('Encrypting clip…', { id: submitToast });
-          const sealClient = createSealClient(suiClient);
-          const rawBytes = new Uint8Array(await file.arrayBuffer());
-          const encrypted = await encryptClipBytes(sealClient, rawBytes);
-          sealIdBytes = encrypted.sealIdBytes;
-          const cipherBuffer = new ArrayBuffer(encrypted.ciphertext.byteLength);
-          new Uint8Array(cipherBuffer).set(encrypted.ciphertext);
-          videoPayload = new Blob([cipherBuffer], {
-            type: 'application/octet-stream',
-          });
-        }
-
         toast.loading('Uploading to Walrus…', { id: submitToast });
 
         const [videoUpload, thumbUpload] = await Promise.all([
-          uploadBlobToWalrus(videoPayload),
+          uploadBlobToWalrus(file),
           uploadBlobToWalrus(thumbnail.blob),
         ]);
 
@@ -251,29 +273,18 @@ export function useClipUpload(): UseClipUploadResult {
           blobId: videoUpload.blobId,
           thumbnailBlobId: thumbUpload.blobId,
           durationSeconds: Math.max(1, Math.round(metadata.durationSeconds)),
-          visibility: isPrivate ? 'private' : 'public',
           recipient: account.address,
-          priceMist,
-          sealIdBytes,
         });
 
-        const target = isPrivate
-          ? `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_private_clip`
-          : `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_public_clip`;
+        const target = `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_clip`;
 
         toast.loading('Publishing on Sui…', { id: submitToast });
 
-        if (isPrivate) {
-          await signAndExecuteTransaction({
-            transaction: tx,
-          });
-        } else {
-          await executeAsSponsor({
-            transaction: tx,
-            client: suiClient,
-            allowedMoveCallTargets: [target],
-          });
-        }
+        await executeAsSponsor({
+          transaction: tx,
+          client: suiClient,
+          allowedMoveCallTargets: [target],
+        });
 
         toast.success('Clip published!', { id: submitToast });
         clearFile();
@@ -312,13 +323,14 @@ export function useClipUpload(): UseClipUploadResult {
     videoUrl,
     metadata,
     thumbnail,
-    visibility,
     isProcessing,
+    isGenerating,
     isSubmitting,
     validationError,
     canSubmit,
     onFileSelected,
     clearFile,
+    generateWithAI,
     onSubmit,
   };
 }

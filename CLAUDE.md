@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**SuiStream** is a decentralized short video platform (≤ 60 seconds) built on the **Sui blockchain**. Users upload, watch, discover, and share short-form video clips. Videos are stored on **Walrus** (decentralized storage), with **AI** generating title, description, and tags for uploaded videos. The platform supports **public** and **private** videos, and users can **pay SUI to unlock/watch private videos**. All gas fees are **sponsored** by the platform.
+**SuiStream** is a decentralized short video platform (≤ 60 seconds) built on the **Sui blockchain**. Users upload, watch, discover, and share short-form video clips. Videos are stored on **Walrus** (decentralized storage), with **AI** generating title, description, and tags for uploaded videos. All gas fees are **sponsored** by the platform.
 
 This is the **MVP scope**. Do not add features beyond what is described here.
 
@@ -52,8 +52,6 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 - `update_metadata(clip: &mut Clip, title: String, description: String, tags: vector<String>)` — Set AI-generated metadata
 - `create_profile(...)` — Create user profile
 - `delete_clip(clip: Clip)` — Burn clip object (owner only)
-- `set_video_price(clip: &mut Clip, price: u64)` — Set price in SUI to watch private video
-- `unlock_video(clip: &mut Clip)` — Pay to unlock private video
 
 ### Conventions
 
@@ -72,8 +70,6 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 ```
 User connects wallet
   → Selects video file (client validates ≤ 60s, max 100MB)
-  → Selects visibility: public or private
-  → If private: optionally sets unlock price in SUI
   → Client extracts thumbnail + keyframes
   → Client calls /api/generate-metadata with keyframes → receives title, description, tags
   → Upload video blob to Walrus → get blob_id
@@ -82,7 +78,7 @@ User connects wallet
   → Show success + link to clip
 ```
 
-### 2. Watch Flow (Public Video)
+### 2. Watch Flow
 
 ```
 User opens clip page or scrolls feed
@@ -91,21 +87,7 @@ User opens clip page or scrolls feed
   → Fire increment_views transaction [SPONSORED] (debounced, after 3s watch)
 ```
 
-### 3. Watch Flow (Private Video)
-
-```
-User opens private clip page
-  → Fetch Clip object from Sui
-  → Check if user has already unlocked
-    → If unlocked: fetch blob from Walrus → play
-    → If locked: Show unlock prompt with price
-      → User pays SUI to unlock
-      → Fire unlock_video transaction [SPONSORED]
-      → Fetch blob from Walrus → play
-  → Fire increment_views transaction [SPONSORED] (debounced, after 3s watch)
-```
-
-### 4. Discovery Flow
+### 3. Discovery Flow
 
 ```
 Home feed: query indexer for recent clips, sorted by created_at
@@ -207,15 +189,8 @@ Home feed: query indexer for recent clips, sorted by created_at
 
 - Use Sui Gas Station or sponsored transaction pool for all user operations
 - Config: store sponsor info in env/config
-- All transactions (create_clip, like, view, unlock) are sponsored
-- Platform covers gas costs; revenue comes from private video unlocks
-
-### Video Visibility & Payment
-
-- **Public videos:** Anyone can watch for free
-- **Private videos:** Must unlock to watch; creator sets unlock price in SUI
-- **Payment flow:** User pays SUI → amount goes to clip creator → video unlocks for payer
-- Track unlock status per user in local state or on-chain (unlocked_users table/map)
+- All transactions (create_clip, like, view) are sponsored
+- Platform covers gas costs
 
 ---
 

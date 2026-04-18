@@ -23,8 +23,7 @@ This guide describes how SuiStream uses **Enoki** (Mysten Labs' hosted sponsorsh
    - **Public key** — safe to expose, used by the client SDK.
    - **Secret key** — server-only, used by the Next.js API route.
 4. Add allowed sponsorable Move targets (one entry per function we sponsor):
-   - `<PACKAGE_ID>::clip::create_public_clip`
-   - `<PACKAGE_ID>::clip::create_private_clip`
+   - `<PACKAGE_ID>::clip::create_clip`
    - `<PACKAGE_ID>::clip::increment_views`
    - `<PACKAGE_ID>::clip::like_clip`
 5. Pick the network for the project (testnet first, mainnet later).
@@ -48,13 +47,13 @@ Add the same keys (without values) to `apps/web/.env.example` so other contribut
 
 ```
 Browser (wallet-connected)
-   │   build Transaction (no gas budget set)
-   ▼
+    │   build Transaction (no gas budget set)
+    ▼
 POST /api/sponsor              ──► Enoki API (sponsor signature)
-   │   { txBytes, sender }         { sponsoredBytes, sponsorSignature }
-   ◄──────────────────────────────
-   │   user signs sponsoredBytes with their wallet
-   ▼
+    │   { txBytes, sender }         { sponsoredBytes, sponsorSignature }
+    ◄──────────────────────────────
+    │   user signs sponsoredBytes with their wallet
+    ▼
 suiClient.executeTransactionBlock({ transactionBlock, signature: [userSig, sponsorSig] })
 ```
 
@@ -70,15 +69,15 @@ Two signatures, one transaction. Enoki provides the sponsor signature; the user 
 
 ## 4. Sponsorship Flow per Action
 
-### A. Publishing a public clip (`useClipUpload`)
+### A. Publishing a clip (`useClipUpload`)
 
 1. Client uploads video + thumbnail to Walrus → `blobId`, `thumbnailBlobId`.
-2. Client builds `create_public_clip` transaction (existing `buildCreateClipTx`). **Do not call** `signAndExecuteTransaction` — instead serialize to bytes.
-3. Client calls `useSponsoredTransaction.sponsor(tx, { allowedMoveCallTargets: ['<PKG>::clip::create_public_clip'] })`.
+2. Client builds `create_clip` transaction (existing `buildCreateClipTx`). **Do not call** `signAndExecuteTransaction` — instead serialize to bytes.
+3. Client calls `useSponsoredTransaction.sponsor(tx, { allowedMoveCallTargets: ['<PKG>::clip::create_clip'] })`.
 4. Hook posts to `/api/sponsor` → server forwards to Enoki → returns sponsored bytes + sponsor sig.
 5. Hook prompts user wallet to sign the sponsored bytes.
 6. Hook executes via `suiClient.executeTransactionBlock` with both signatures.
-7. On success → invalidate `['public-clips']` query, redirect to `/dashboard/discover`.
+7. On success → invalidate `['clips']` query, redirect to `/dashboard/discover`.
 
 Replace the `signAndExecute({ transaction: tx })` call in `useClipUpload.ts` with the sponsored-execute hook.
 
@@ -94,7 +93,7 @@ Replace the `signAndExecute({ transaction: tx })` call in `useClipUpload.ts` wit
 
 ## 5. Security & Abuse Prevention
 
-The sponsor pays for *every* sponsored transaction, so the API route is your money tap. Treat it accordingly:
+The sponsor pays for _every_ sponsored transaction, so the API route is your money tap. Treat it accordingly:
 
 - **Restrict allowed targets per request.** Always pass `allowedMoveCallTargets` to Enoki — never sponsor an arbitrary tx.
 - **Bind sender to the request.** Server should verify the connected wallet's address (e.g. signed nonce or a session) so a third party can't spend your sponsor on someone else's tx.
@@ -110,7 +109,7 @@ The sponsor pays for *every* sponsored transaction, so the API route is your mon
 
 ## 6. Wallet UX Notes
 
-- Users still see a wallet popup to sign — sponsorship only removes the *gas* requirement. The signing prompt and clip-creation transaction details are unchanged.
+- Users still see a wallet popup to sign — sponsorship only removes the _gas_ requirement. The signing prompt and clip-creation transaction details are unchanged.
 - The wallet shows "0 SUI" gas in the prompt because the sponsor's gas object is attached. Some wallets render this as "sponsored"; others hide gas — both are fine.
 - `DashboardGuard` already gates the dashboard on a connected wallet — no change needed.
 
@@ -121,7 +120,7 @@ The sponsor pays for *every* sponsored transaction, so the API route is your mon
 - [ ] Connect a brand-new testnet wallet with **0 SUI**.
 - [ ] Upload a clip → tx succeeds → wallet balance still 0.
 - [ ] Open the clip on `/dashboard/watch/[id]` → after the watch threshold, view count increments → wallet balance still 0.
-- [ ] Try to call the `/api/sponsor` route from `curl` with a Move target *not* in the allowlist → expect a 4xx from Enoki, no sponsorship.
+- [ ] Try to call the `/api/sponsor` route from `curl` with a Move target _not_ in the allowlist → expect a 4xx from Enoki, no sponsorship.
 - [ ] Trigger rate limit (e.g. 6th upload in an hour) → expect a 429 from the route, clear toast on the client.
 - [ ] Disconnect wallet mid-flow → upload should fail cleanly with a "Connect your wallet" toast (already implemented).
 - [ ] Switch `NEXT_PUBLIC_SUI_NETWORK` mismatch with Enoki project → route should refuse.
@@ -141,5 +140,4 @@ The sponsor pays for *every* sponsored transaction, so the API route is your mon
 ## 9. Out of Scope (for now)
 
 - **zkLogin / Enoki social sign-in** — Enoki also offers a wallet abstraction, but SuiStream stays on standard wallet connect for the MVP. Revisit after sponsorship is stable.
-- **Walrus storage fees** — Enoki sponsors *Sui gas only*. Walrus blob fees (WAL + tip) are a separate problem, solved by either a server-side upload route or by funding user wallets with WAL. See the upload guide.
-- **Seal threshold-decryption fees** — only relevant once private clips ship. Same shape: either server-paid or user-paid.
+- **Walrus storage fees** — Enoki sponsors _Sui gas only_. Walrus blob fees (WAL + tip) are a separate problem, solved by either a server-side upload route or by funding user wallets with WAL. See the upload guide.

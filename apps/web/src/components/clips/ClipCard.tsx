@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { EyeIcon, HeartIcon, LockIcon, PlayIcon } from 'lucide-react';
+import { EyeIcon, HeartIcon, PlayIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getWalrusBlobUrl } from '@/lib/walrus';
-import { mistToSui } from '@/lib/validation/upload-schema';
-import { cn } from '@/lib/utils';
 import { useImageAspectRatio } from '@/hooks/useImageAspectRatio';
+import { cn } from '@/lib/utils';
 import type { Clip } from '@/types/clip';
 
 interface ClipCardProps {
@@ -32,21 +31,24 @@ function formatCount(value: number): string {
 interface ClipCardBentoProps {
   clip: Clip;
   className?: string;
+  large?: boolean;
 }
 
-export function ClipCardBento({ clip, className }: ClipCardBentoProps) {
+export function ClipCardBento({ clip, className, large }: ClipCardBentoProps) {
   const thumbnailUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const { ratio, isLoaded } = useImageAspectRatio(thumbnailUrl);
-  const aspectStyle = isLoaded && ratio
-    ? { aspectRatio: String(ratio) }
-    : { aspectRatio: '16 / 9' };
+  const aspectStyle =
+    isLoaded && ratio
+      ? { aspectRatio: String(ratio) }
+      : { aspectRatio: '16 / 9' };
 
   return (
     <Link
       href={`/dashboard/watch/${clip.id}`}
       style={aspectStyle}
       className={cn(
-        'group bg-muted relative block w-full overflow-hidden rounded-xl break-inside-avoid mb-3',
+        'group bg-muted relative mb-3 block w-full break-inside-avoid overflow-hidden rounded-xl',
+        large ? 'md:col-span-2 md:row-span-2' : '',
         className
       )}
       aria-label={`Watch ${clip.title}`}
@@ -55,7 +57,11 @@ export function ClipCardBento({ clip, className }: ClipCardBentoProps) {
         src={thumbnailUrl}
         alt={clip.title}
         fill
-        sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+        sizes={
+          large
+            ? '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw'
+            : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'
+        }
         className="object-cover transition group-hover:scale-[1.03]"
         unoptimized
       />
@@ -70,15 +76,6 @@ export function ClipCardBento({ clip, className }: ClipCardBentoProps) {
       >
         {formatDuration(clip.durationSeconds)}
       </Badge>
-      {clip.visibility === 'private' ? (
-        <Badge
-          variant="secondary"
-          className="absolute top-2 left-2 gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-black"
-        >
-          <LockIcon className="size-3" />
-          {mistToSui(clip.priceMist)} SUI
-        </Badge>
-      ) : null}
       <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-12 opacity-0 transition group-hover:opacity-100">
         <h3 className="line-clamp-2 text-sm font-medium text-white">
           {clip.title}
@@ -101,9 +98,10 @@ export function ClipCardBento({ clip, className }: ClipCardBentoProps) {
 export function ClipCard({ clip, className }: ClipCardProps) {
   const thumbnailUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const { ratio, isLoaded } = useImageAspectRatio(thumbnailUrl);
-  const aspectStyle = isLoaded && ratio
-    ? { aspectRatio: String(ratio) }
-    : { aspectRatio: '16 / 9' };
+  const aspectStyle =
+    isLoaded && ratio
+      ? { aspectRatio: String(ratio) }
+      : { aspectRatio: '16 / 9' };
 
   return (
     <Link
@@ -134,16 +132,7 @@ export function ClipCard({ clip, className }: ClipCardProps) {
         >
           {formatDuration(clip.durationSeconds)}
         </Badge>
-        {clip.visibility === 'private' ? (
-          <Badge
-            variant="secondary"
-            className="absolute top-2 left-2 gap-1 rounded-full bg-amber-500/90 px-2 py-0.5 text-black"
-          >
-            <LockIcon className="size-3" />
-            {mistToSui(clip.priceMist)} SUI
-          </Badge>
-        ) : null}
-        <div className="absolute right-0 bottom-0 left-0 bg-linear-to-t from-black/80 to-transparent p-3 pt-12 opacity-0 transition group-hover:opacity-100">
+        <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-12 opacity-0 transition group-hover:opacity-100">
           <h3 className="line-clamp-2 text-sm font-medium text-white">
             {clip.title}
           </h3>

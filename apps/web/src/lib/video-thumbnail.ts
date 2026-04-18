@@ -12,11 +12,23 @@ export interface VideoThumbnail {
   timestampSeconds: number;
 }
 
+export interface VideoFrame {
+  dataUrl: string;
+  timestampSeconds: number;
+}
+
 export interface ExtractThumbnailOptions {
   timestampSeconds?: number;
   mimeType?: string;
   quality?: number;
   maxWidth?: number;
+}
+
+export interface ExtractFramesOptions {
+  intervalSeconds?: number;
+  maxWidth?: number;
+  mimeType?: string;
+  quality?: number;
 }
 
 const DEFAULT_MIME = 'image/jpeg';
@@ -168,8 +180,11 @@ export async function extractKeyframes(
 ): Promise<VideoThumbnail[]> {
   if (count < 1) return [];
 
-  const { mimeType = DEFAULT_MIME, quality = DEFAULT_QUALITY, maxWidth = DEFAULT_MAX_WIDTH } =
-    options;
+  const {
+    mimeType = DEFAULT_MIME,
+    quality = DEFAULT_QUALITY,
+    maxWidth = DEFAULT_MAX_WIDTH,
+  } = options;
 
   const video = createVideoElement(file);
   try {
@@ -191,6 +206,49 @@ export async function extractKeyframes(
         dataUrl: canvas.toDataURL(mimeType, quality),
         width: canvas.width,
         height: canvas.height,
+        timestampSeconds,
+      });
+    }
+    return frames;
+  } finally {
+    URL.revokeObjectURL(video.src);
+    video.remove();
+  }
+}
+
+export async function extractFramesAtIntervals(
+  file: File,
+  options: ExtractFramesOptions = {}
+): Promise<VideoFrame[]> {
+  const {
+    intervalSeconds = 10,
+    maxWidth = 640,
+    mimeType = DEFAULT_MIME,
+    quality = 0.7,
+  } = options;
+
+  const video = createVideoElement(file);
+  try {
+    await waitForMetadata(video);
+    const duration = video.duration;
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new Error('Video duration is unavailable');
+    }
+
+    const frameCount = Math.min(Math.floor(duration / intervalSeconds), 6);
+    if (frameCount < 1) return [];
+
+    const frames: VideoFrame[] = [];
+    for (let i = 1; i <= frameCount; i += 1) {
+      const timestampSeconds = Math.min(
+        intervalSeconds * i,
+        Math.max(0, duration - 0.1)
+      );
+      await seekTo(video, timestampSeconds);
+      const canvas = drawFrameToCanvas(video, maxWidth);
+      const dataUrl = canvas.toDataURL(mimeType, quality);
+      frames.push({
+        dataUrl,
         timestampSeconds,
       });
     }

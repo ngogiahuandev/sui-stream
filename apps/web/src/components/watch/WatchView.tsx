@@ -1,17 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeftIcon, EyeIcon, HeartIcon, LockIcon } from 'lucide-react';
+import { ArrowLeftIcon, EyeIcon, HeartIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CopyButton } from '@/components/common/CopyButton';
 import { VideoPlayer } from '@/components/watch/VideoPlayer';
-import { PrivateVideoPlayer } from '@/components/watch/PrivateVideoPlayer';
 import { useClip } from '@/hooks/useClip';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { getWalrusBlobUrl } from '@/lib/walrus';
-import { mistToSui } from '@/lib/validation/upload-schema';
 
 interface WatchViewProps {
   id: string;
@@ -44,7 +42,7 @@ export function WatchView({ id }: WatchViewProps) {
       <section className="flex flex-col items-center gap-3 p-12 text-center">
         <h2 className="text-lg font-semibold">Clip not found</h2>
         <p className="text-muted-foreground text-sm">
-          The clip you’re looking for doesn’t exist or is no longer available.
+          The clip you're looking for doesn't exist or is no longer available.
         </p>
         <Button asChild size="sm" variant="outline">
           <Link href="/dashboard/discover" className="gap-1.5">
@@ -56,7 +54,6 @@ export function WatchView({ id }: WatchViewProps) {
     );
   }
 
-  const isPrivate = clip.visibility === 'private';
   const posterUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
 
   return (
@@ -68,19 +65,11 @@ export function WatchView({ id }: WatchViewProps) {
         </Link>
       </Button>
 
-      {isPrivate ? (
-        <PrivateVideoPlayer
-          clip={clip}
-          onTimeUpdate={notifyTimeUpdate}
-          preventDownload
-        />
-      ) : (
-        <VideoPlayer
-          src={getWalrusBlobUrl(clip.blobId)}
-          poster={posterUrl}
-          onTimeUpdate={notifyTimeUpdate}
-        />
-      )}
+      <VideoPlayer
+        src={getWalrusBlobUrl(clip.blobId)}
+        poster={posterUrl}
+        onTimeUpdate={notifyTimeUpdate}
+      />
 
       <header className="flex flex-col gap-3">
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
@@ -95,15 +84,6 @@ export function WatchView({ id }: WatchViewProps) {
             <HeartIcon className="size-4" />
             {clip.likes.toLocaleString()} likes
           </span>
-          {isPrivate ? (
-            <Badge
-              variant="secondary"
-              className="gap-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400"
-            >
-              <LockIcon className="size-3" />
-              {mistToSui(clip.priceMist)} SUI
-            </Badge>
-          ) : null}
           <span className="bg-border/60 inline-block h-4 w-px" />
           <div className="flex items-center gap-1.5">
             <span>by</span>

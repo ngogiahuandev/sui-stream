@@ -1,6 +1,6 @@
-# Public Video Upload & Streaming Guide
+# Video Upload & Streaming Guide
 
-This guide covers the data flows and best practices for uploading and streaming public videos on SuiStream using Walrus storage and Sui smart contracts.
+This guide covers the data flows and best practices for uploading and streaming videos on SuiStream using Walrus storage and Sui smart contracts.
 
 ---
 
@@ -25,19 +25,18 @@ Client (Upload) → Walrus (Storage) → Playback
 ### Step 2: Extract Media
 
 - Extract thumbnail at 1 second mark
-- Extract 3-5 keyframes for AI metadata generation
+- Extract keyframes at intervals for AI metadata generation
 
 ### Step 3: Upload to Walrus
 
 - Upload video file to Walrus Publisher API → returns blob_id
 - Upload thumbnail to Walrus → returns thumbnail_blob_id
 - Store blob_id and thumbnail_blob_id (NOT full URLs)
-- Track expiry_epoch for renewal
 
 ### Step 4: AI Metadata Generation
 
 - Send keyframes to server-side API
-- AI returns: title, description, tags
+- AI returns: title, description, tags (max 3)
 - Do NOT call AI from client
 
 ### Step 5: Smart Contract Transaction
@@ -46,7 +45,6 @@ Client (Upload) → Walrus (Storage) → Playback
   - title, description, tags
   - blob_id, thumbnail_blob_id
   - duration_seconds
-  - visibility = public
 - Use sponsored transactions (user pays no gas)
 
 ### Step 6: On-Chain Confirmation
@@ -65,12 +63,10 @@ Client (Upload) → Walrus (Storage) → Playback
 - owner: address (creator wallet)
 - title: string (max 80 chars)
 - description: string (max 500 chars)
-- tags: string[] (max 8 tags)
+- tags: string[] (max 3 tags)
 - blob_id: string (Walrus reference)
 - thumbnail_blob_id: string (Walrus reference)
 - duration_seconds: u64 (max 60)
-- visibility: u8 (0 = public, 1 = private)
-- price_mist: u64 (unlock price in MIST)
 - likes: u64
 - views: u64
 - created_at: u64 (epoch)
@@ -111,7 +107,6 @@ Client (Upload) → Walrus (Storage) → Playback
 
 - Always validate file type, size, duration client-side before upload
 - Never store full Walrus URLs on-chain, only blob_id
-- Track expiry_epoch and renew before expiration
 - Generate AI metadata server-side, never call AI from client
 - Use sponsored transactions for all user operations
 
@@ -120,7 +115,6 @@ Client (Upload) → Walrus (Storage) → Playback
 - Validate duration ≤ 60 seconds in Move contract
 - Validate all string lengths in Move contract
 - Emit events for efficient indexing
-- Use entry functions with proper capability checks
 
 ### Playback
 

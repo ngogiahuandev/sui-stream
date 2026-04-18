@@ -1,18 +1,15 @@
-export type ClipVisibility = 'public' | 'private';
-
 export interface ClipFormValues {
   title: string;
   description: string;
   tags: string[];
-  visibility: ClipVisibility;
 }
 
 export const CLIP_LIMITS = {
-  maxDurationSeconds: 60 * 60,
-  maxSizeBytes: 1024 * 1024 * 1024,
+  maxDurationSeconds: 60,
+  maxSizeBytes: 100 * 1024 * 1024,
   maxTitleLength: 80,
   maxDescriptionLength: 500,
-  maxTags: 8,
+  maxTags: 3,
   maxTagLength: 24,
 } as const;
 
@@ -32,18 +29,7 @@ export interface Clip {
   blobId: string;
   thumbnailBlobId: string;
   durationSeconds: number;
-  visibility: ClipVisibility;
-  priceMist: string;
-  sealIdHex: string;
   likes: number;
   views: number;
   createdAtMs: number;
-}
-
-export interface ClipAccess {
-  id: string;
-  clipId: string;
-  viewer: string;
-  unlockedAtMs: number;
-  paidMist: string;
 }

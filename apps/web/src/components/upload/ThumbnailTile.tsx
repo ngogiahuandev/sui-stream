@@ -48,7 +48,7 @@ export function ThumbnailTile({
           </div>
         )}
         {isGeneratingThumbnail ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-violet-600/80 via-fuchsia-600/80 to-pink-600/80 text-xs font-medium text-white backdrop-blur-sm">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs font-medium text-white backdrop-blur-sm">
             <Loader2Icon className="size-5 animate-spin" />
             Generating with AI…
           </div>

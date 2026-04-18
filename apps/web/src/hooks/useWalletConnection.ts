@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import {
+  useAutoConnectWallet,
   useCurrentAccount,
   useCurrentWallet,
   useDisconnectWallet,
@@ -31,6 +32,7 @@ export function useWalletConnection(): WalletConnectionState {
   const account = useCurrentAccount();
   const { connectionStatus } = useCurrentWallet();
   const currentWallet = useCurrentWallet();
+  const autoConnectStatus = useAutoConnectWallet();
   const { mutate: disconnectMutate } = useDisconnectWallet();
 
   const openConnectModal = useCallback(() => setIsModalOpen(true), []);
@@ -58,9 +60,12 @@ export function useWalletConnection(): WalletConnectionState {
       ? currentWallet.currentWallet.name
       : null;
 
+  const isAutoConnectPending = autoConnectStatus === 'idle';
+
   return {
     isConnected: connectionStatus === 'connected' && Boolean(account),
-    isConnecting: connectionStatus === 'connecting',
+    isConnecting:
+      connectionStatus === 'connecting' || isAutoConnectPending,
     address,
     displayAddress,
     walletName,

@@ -70,6 +70,60 @@ export function buildLikeClipTx(clipId: string): Transaction {
   return tx;
 }
 
+export type VoteType = 1 | 2;
+
+export interface VoteClipTxInput {
+  clipId: string;
+  voter: string;
+  voteType: VoteType;
+  existingVoteId?: string | null;
+}
+
+export function buildVoteClipTx(input: VoteClipTxInput): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+
+  if (input.existingVoteId) {
+    tx.moveCall({
+      target: `${pkg}::${SUI_STREAM_MODULE}::remove_vote`,
+      arguments: [
+        tx.object(input.existingVoteId),
+        tx.pure.id(input.clipId),
+        tx.object(SUI_CLOCK_OBJECT_ID),
+      ],
+    });
+  }
+
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::cast_vote`,
+    arguments: [
+      tx.pure.id(input.clipId),
+      tx.pure.address(input.voter),
+      tx.pure.u8(input.voteType),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+
+  return tx;
+}
+
+export function buildRemoveVoteTx(
+  clipId: string,
+  voteId: string
+): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::remove_vote`,
+    arguments: [
+      tx.object(voteId),
+      tx.pure.id(clipId),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  return tx;
+}
+
 interface RawClipFields {
   id: { id: string };
   owner: string;

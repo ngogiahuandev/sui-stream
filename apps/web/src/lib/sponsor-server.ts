@@ -18,6 +18,9 @@ const ALLOWED_TARGETS = new Set(
         `${PACKAGE_ID}::clip::create_clip`,
         `${PACKAGE_ID}::clip::increment_views`,
         `${PACKAGE_ID}::clip::like_clip`,
+        `${PACKAGE_ID}::clip::vote_clip`,
+        `${PACKAGE_ID}::clip::cast_vote`,
+        `${PACKAGE_ID}::clip::remove_vote`,
       ]
     : []
 );

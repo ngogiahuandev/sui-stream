@@ -2,13 +2,14 @@
 
 import { useCallback, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeftIcon, CalendarIcon, EyeIcon, HeartIcon } from 'lucide-react';
+import { ArrowLeftIcon, CalendarIcon, EyeIcon } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VideoPlayer } from '@/components/watch/VideoPlayer';
 import { ClipOwnerCard } from '@/components/watch/ClipOwnerCard';
+import { VoteButtons } from '@/components/watch/VoteButtons';
 import { useClip } from '@/hooks/useClip';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { getWalrusBlobUrl } from '@/lib/walrus';
@@ -91,15 +92,14 @@ export function WatchView({ id }: WatchViewProps) {
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
           {clip.title}
         </h1>
-        <ClipOwnerCard owner={clip.owner} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <ClipOwnerCard owner={clip.owner} />
+          <VoteButtons clipId={clip.id} />
+        </div>
         <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
             <EyeIcon className="size-4" />
             {clip.views.toLocaleString()} views
-          </span>
-          <span className="flex items-center gap-1.5">
-            <HeartIcon className="size-4" />
-            {clip.likes.toLocaleString()} likes
           </span>
           {Number.isFinite(clip.createdAtMs) && clip.createdAtMs > 0 ? (
             <span

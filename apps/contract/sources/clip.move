@@ -20,6 +20,11 @@ const EBlobIdEmpty: u64 = 6;
 const EBlobIdTooLong: u64 = 7;
 const ENotOwner: u64 = 8;
 const EEmptyTitle: u64 = 9;
+const EInvalidVoteType: u64 = 10;
+const EVoteClipMismatch: u64 = 11;
+
+const VOTE_UPVOTE: u8 = 1;
+const VOTE_DOWNVOTE: u8 = 2;
 
 public struct Clip has key, store {
     id: UID,
@@ -48,6 +53,30 @@ public struct ClipViewed has copy, drop { id: ID }
 public struct ClipLiked has copy, drop { id: ID }
 public struct ClipUpdated has copy, drop { id: ID }
 public struct ClipDeleted has copy, drop { id: ID }
+
+public struct Vote has key, store {
+    id: UID,
+    clip_id: ID,
+    voter: address,
+    vote_type: u8,
+    created_at_ms: u64,
+}
+
+public struct VoteCast has copy, drop {
+    vote_id: ID,
+    clip_id: ID,
+    voter: address,
+    vote_type: u8,
+    created_at_ms: u64,
+}
+
+public struct VoteRemoved has copy, drop {
+    vote_id: ID,
+    clip_id: ID,
+    voter: address,
+    vote_type: u8,
+    removed_at_ms: u64,
+}
 
 fun validate_metadata(
     title: &String,
@@ -179,3 +208,104 @@ public fun duration_seconds(clip: &Clip): u64 { clip.duration_seconds }
 public fun likes(clip: &Clip): u64 { clip.likes }
 public fun views(clip: &Clip): u64 { clip.views }
 public fun created_at_ms(clip: &Clip): u64 { clip.created_at_ms }
+
+public fun vote_clip_id(vote: &Vote): ID { vote.clip_id }
+public fun vote_voter(vote: &Vote): address { vote.voter }
+public fun vote_type(vote: &Vote): u8 { vote.vote_type }
+public fun vote_created_at_ms(vote: &Vote): u64 { vote.created_at_ms }
+
+public fun vote_clip(
+    clip_id: ID,
+    vote_type: u8,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(
+        vote_type == VOTE_UPVOTE || vote_type == VOTE_DOWNVOTE,
+        EInvalidVoteType,
+    );
+    let voter = tx_context::sender(ctx);
+    let created_at_ms = clock.timestamp_ms();
+    let id = object::new(ctx);
+    let vote_id = object::uid_to_inner(&id);
+
+    let vote = Vote {
+        id,
+        clip_id,
+        voter,
+        vote_type,
+        created_at_ms,
+    };
+
+    event::emit(VoteCast {
+        vote_id,
+        clip_id,
+        voter,
+        vote_type,
+        created_at_ms,
+    });
+
+    transfer::public_transfer(vote, voter);
+}
+
+public fun cast_vote(
+    clip_id: ID,
+    voter: address,
+    vote_type: u8,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(
+        vote_type == VOTE_UPVOTE || vote_type == VOTE_DOWNVOTE,
+        EInvalidVoteType,
+    );
+    let created_at_ms = clock.timestamp_ms();
+    let id = object::new(ctx);
+    let vote_id = object::uid_to_inner(&id);
+
+    let vote = Vote {
+        id,
+        clip_id,
+        voter,
+        vote_type,
+        created_at_ms,
+    };
+
+    event::emit(VoteCast {
+        vote_id,
+        clip_id,
+        voter,
+        vote_type,
+        created_at_ms,
+    });
+
+    transfer::public_share_object(vote);
+}
+
+public fun remove_vote(
+    vote: Vote,
+    clip_id: ID,
+    clock: &Clock,
+    _ctx: &TxContext,
+) {
+    assert!(vote.clip_id == clip_id, EVoteClipMismatch);
+
+    let Vote {
+        id,
+        clip_id: stored_clip_id,
+        voter,
+        vote_type,
+        created_at_ms: _,
+    } = vote;
+    let vote_id = object::uid_to_inner(&id);
+
+    event::emit(VoteRemoved {
+        vote_id,
+        clip_id: stored_clip_id,
+        voter,
+        vote_type,
+        removed_at_ms: clock.timestamp_ms(),
+    });
+
+    object::delete(id);
+}

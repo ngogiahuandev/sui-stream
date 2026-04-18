@@ -6,10 +6,16 @@ export const uploadFormSchema = z.object({
     .string()
     .trim()
     .min(1, 'Title is required')
-    .max(CLIP_LIMITS.maxTitleLength, `Title must be ${CLIP_LIMITS.maxTitleLength} characters or fewer`),
+    .max(
+      CLIP_LIMITS.maxTitleLength,
+      `Title must be ${CLIP_LIMITS.maxTitleLength} characters or fewer`
+    ),
   description: z
     .string()
-    .max(CLIP_LIMITS.maxDescriptionLength, `Description must be ${CLIP_LIMITS.maxDescriptionLength} characters or fewer`),
+    .max(
+      CLIP_LIMITS.maxDescriptionLength,
+      `Description must be ${CLIP_LIMITS.maxDescriptionLength} characters or fewer`
+    ),
   tagsInput: z.string().max(200, 'Tags list is too long'),
 });
 

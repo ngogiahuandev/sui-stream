@@ -56,7 +56,9 @@ export function NavUser() {
     disconnect,
   } = useWalletConnection();
   const { formatted, isLoading: isBalanceLoading } = useSuiBalance({ address });
-  const { copy, copied } = useCopyToClipboard({ successToast: 'Address copied' });
+  const { copy, copied } = useCopyToClipboard({
+    successToast: 'Address copied',
+  });
 
   if (!isConnected || !address || !displayAddress) {
     return (
@@ -71,14 +73,14 @@ export function NavUser() {
                 disabled={isConnecting}
                 className="justify-start gap-3"
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
+                <span className="bg-sidebar-accent text-sidebar-accent-foreground flex size-8 shrink-0 items-center justify-center">
                   <WalletIcon className="size-4" aria-hidden="true" />
                 </span>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">
                     {isConnecting ? 'Connecting…' : 'Connect wallet'}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="text-muted-foreground truncate text-xs">
                     Sign in with Sui
                   </span>
                 </div>
@@ -105,13 +107,13 @@ export function NavUser() {
             >
               <Avatar
                 address={address}
-                className="size-8 shrink-0 overflow-hidden rounded-lg"
+                className="size-8 shrink-0 overflow-hidden"
               />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-mono text-xs font-medium">
                   {displayAddress}
                 </span>
-                <span className="truncate text-xs text-muted-foreground">
+                <span className="text-muted-foreground truncate text-xs">
                   {balanceLabel}
                 </span>
               </div>
@@ -119,7 +121,7 @@ export function NavUser() {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-60 rounded-lg"
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-60"
             side={isMobile ? 'bottom' : 'right'}
             align="end"
             sideOffset={4}
@@ -128,13 +130,13 @@ export function NavUser() {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar
                   address={address}
-                  className="size-8 shrink-0 overflow-hidden rounded-lg"
+                  className="size-8 shrink-0 overflow-hidden"
                 />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-mono text-xs font-medium">
                     {displayAddress}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="text-muted-foreground truncate text-xs">
                     {walletName
                       ? `${walletName} · ${balanceLabel}`
                       : balanceLabel}

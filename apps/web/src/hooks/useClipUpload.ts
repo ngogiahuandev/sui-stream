@@ -53,7 +53,8 @@ function validateFile(file: File): string | null {
 export function useClipUpload(): UseClipUploadResult {
   const form = useForm<UploadFormValues>({
     resolver: zodResolver(uploadFormSchema),
-    mode: 'onBlur',
+    mode: 'onTouched',
+    reValidateMode: 'onChange',
     defaultValues: {
       title: '',
       description: '',

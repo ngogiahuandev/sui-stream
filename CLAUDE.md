@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**SuiStream** is a decentralized short video platform (≤ 60 seconds) built on the **Sui blockchain**. Users upload, watch, discover, and share short-form video clips. Videos are stored on **Walrus** (decentralized storage), optionally encrypted with **Seal** (for private/gated content), and automatically tagged by **AI** for discovery.
+**SuiStream** is a decentralized short video platform (≤ 60 seconds) built on the **Sui blockchain**. Users upload, watch, discover, and share short-form video clips. Videos are stored on **Walrus** (decentralized storage), with **AI** generating title, description, and tags for uploaded videos. The platform supports **public** and **private** videos, and users can **pay SUI to unlock/watch private videos**. All gas fees are **sponsored** by the platform.
 
 This is the **MVP scope**. Do not add features beyond what is described here.
 
@@ -26,6 +26,7 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 - **Smart Contracts:** Move language
 - **SDK:** `@mysten/sui` (TypeScript SDK)
 - **Wallet Standard:** Sui Wallet Standard (supports Sui Wallet, Suiet, Ethos, etc.)
+- **Gas Sponsorship:** All user transactions are sponsored via Gas Station / Sponsored Transactions
 
 ### Storage
 
@@ -33,16 +34,11 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 - **Walrus SDK:** `@mysten/walrus` or direct HTTP publisher/aggregator API
 - **Metadata:** On-chain (Sui objects) for video metadata; off-chain indexer for queries
 
-### Encryption
-
-- **Seal Protocol:** Used for encrypting private video content
-- **Flow:** Encrypt blob before uploading to Walrus → store decryption policy on-chain → authorized users decrypt via Seal
-
 ### AI
 
-- **Purpose:** Auto-tag uploaded videos (content labels, categories, scene detection)
+- **Purpose:** Auto-generate title, description, and tags for uploaded videos
 - **SDK:** Vercel AI SDK (`ai` package) with provider of choice (OpenAI, Google, Anthropic, etc.)
-- **Flow:** Extract keyframes from uploaded video → send to vision model via Vercel AI SDK → store returned tags as metadata on-chain
+- **Flow:** Extract keyframes from uploaded video → send to vision model via Vercel AI SDK → returns title, description, and tags
 
 ---
 
@@ -53,16 +49,19 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 - `create_clip(...)` — Mint a new Clip object (validate duration ≤ 60s)
 - `like_clip(clip: &mut Clip)` — Increment likes
 - `increment_views(clip: &mut Clip)` — Increment view count
-- `update_tags(clip: &mut Clip, tags: vector<String>)` — Set AI-generated tags
+- `update_metadata(clip: &mut Clip, title: String, description: String, tags: vector<String>)` — Set AI-generated metadata
 - `create_profile(...)` — Create user profile
 - `delete_clip(clip: Clip)` — Burn clip object (owner only)
+- `set_video_price(clip: &mut Clip, price: u64)` — Set price in SUI to watch private video
+- `unlock_video(clip: &mut Clip)` — Pay to unlock private video
 
 ### Conventions
 
 - All entry functions should use `entry fun` with proper capability checks
 - Use `tx_context::sender(ctx)` for ownership verification
-- Emit events for indexing: `ClipCreated`, `ClipLiked`, `ClipViewed`
+- Emit events for indexing: `ClipCreated`, `ClipLiked`, `ClipViewed`, `VideoUnlocked`
 - Package ID stored in `lib/constants.ts` — update after each deploy
+- Use **Sponsored Transactions** for all user operations (no gas fees for users)
 
 ---
 
@@ -73,26 +72,40 @@ This is the **MVP scope**. Do not add features beyond what is described here.
 ```
 User connects wallet
   → Selects video file (client validates ≤ 60s, max 100MB)
+  → Selects visibility: public or private
+  → If private: optionally sets unlock price in SUI
   → Client extracts thumbnail + keyframes
-  → Client calls /api/tag with keyframes → receives AI tags
-  → If private: encrypt video blob via Seal
+  → Client calls /api/generate-metadata with keyframes → receives title, description, tags
   → Upload video blob to Walrus → get blob_id
   → Upload thumbnail to Walrus → get thumbnail_blob_id
-  → Build & execute Sui transaction: create_clip(...)
+  → Build & execute Sui transaction: create_clip(...) [SPONSORED]
   → Show success + link to clip
 ```
 
-### 2. Watch Flow
+### 2. Watch Flow (Public Video)
 
 ```
 User opens clip page or scrolls feed
   → Fetch Clip object from Sui (or indexer)
-  → If not encrypted: fetch blob from Walrus aggregator → play
-  → If encrypted: check Seal policy → decrypt via Seal → play
-  → Fire increment_views transaction (debounced, after 3s watch)
+  → Fetch blob from Walrus aggregator → play
+  → Fire increment_views transaction [SPONSORED] (debounced, after 3s watch)
 ```
 
-### 3. Discovery Flow
+### 3. Watch Flow (Private Video)
+
+```
+User opens private clip page
+  → Fetch Clip object from Sui
+  → Check if user has already unlocked
+    → If unlocked: fetch blob from Walrus → play
+    → If locked: Show unlock prompt with price
+      → User pays SUI to unlock
+      → Fire unlock_video transaction [SPONSORED]
+      → Fetch blob from Walrus → play
+  → Fire increment_views transaction [SPONSORED] (debounced, after 3s watch)
+```
+
+### 4. Discovery Flow
 
 ```
 Home feed: query indexer for recent clips, sorted by created_at
@@ -109,7 +122,6 @@ Home feed: query indexer for recent clips, sorted by created_at
 
 - **`/apps/web/src/app/*` is for routing ONLY.** Page files (`page.tsx`, `layout.tsx`) must contain zero business logic, zero state, zero data fetching. They import a view component and render it — nothing else. Example:
   ```tsx
-  // apps/web/src/app/upload/page.tsx — CORRECT
   import { UploadView } from "@/components/upload/UploadView";
   export default function UploadPage() {
     return <UploadView />;
@@ -117,12 +129,12 @@ Home feed: query indexer for recent clips, sorted by created_at
   ```
 - **Components are UI only.** Components receive data and callbacks via props or by calling custom hooks. They handle rendering, layout, and user interaction (onClick, onChange). They do NOT contain: fetch calls, transaction building, encryption logic, direct Zustand access, or any business logic.
 - **All logic lives in custom hooks.** Every feature's state management, data fetching, mutations, transaction building, side effects, and derived state must be in dedicated hooks under `/hooks`. Hooks are the single source of truth for "what happens when."
-- **One feature = one hook + one (or more) UI component(s).** Example: `useClipUpload` hook handles the entire upload pipeline (validate → extract keyframes → tag → encrypt → upload → transact). `ClipUploader.tsx` just renders the form and calls the hook.
+- **One feature = one hook + one (or more) UI component(s).** Example: `useClipUpload` hook handles the entire upload pipeline (validate → extract keyframes → generate metadata → upload → transact). `ClipUploader.tsx` just renders the form and calls the hook.
 
 ### File Organization
 
 - Every distinct feature, utility, type definition, and hook goes in its own file — no mega-files combining unrelated concerns
-- Never put multiple hooks in one file. One hook per file, named after the hook: `useClip.ts`, `useWalrus.ts`, `useSeal.ts`
+- Never put multiple hooks in one file. One hook per file, named after the hook: `useClip.ts`, `useWalrus.ts`, `useVideoUnlock.ts`
 - Never put multiple components in one file unless they are small private sub-components used only by the parent in the same file
 - Lib files (`/lib`) are pure functions and client configs — no React, no hooks, no state. These are importable by both hooks and server-side code
 - Type definitions: one file per domain (`clip.ts`, `profile.ts`) with barrel export from `types/index.ts`
@@ -155,6 +167,7 @@ Home feed: query indexer for recent clips, sorted by created_at
 - All transaction builders go in `/lib/sui.ts` as pure functions
 - Hooks consume these builders — components never import from `/lib/sui.ts` directly
 - Use `Transaction` from `@mysten/sui/transactions`
+- **All user transactions MUST be sponsored** — use gas sponsorship API/pool
 - Always use `dryRunTransactionBlock` before executing in dev
 - Handle transaction errors with user-friendly toast messages
 
@@ -172,7 +185,7 @@ Home feed: query indexer for recent clips, sorted by created_at
 
 - Validate duration using `HTMLVideoElement.duration` before upload
 - Extract thumbnail at 1s mark using `<canvas>` capture
-- Extract 3-5 keyframes evenly distributed for AI tagging
+- Extract 3-5 keyframes evenly distributed for AI metadata generation
 - Compress/transcode if needed using FFmpeg.wasm (only if file > 50MB)
 
 ### Walrus Integration
@@ -182,26 +195,27 @@ Home feed: query indexer for recent clips, sorted by created_at
 - Store `blobId` on-chain, never the full URL
 - Handle epochs: Walrus blobs have storage duration — track expiry
 
-### Seal Integration
+### AI Metadata Generation
 
-- Encrypt the video blob client-side before uploading to Walrus
-- Create a Seal policy on-chain defining who can decrypt (e.g., owner-only, allowlist)
-- Decryption happens client-side: fetch encrypted blob → Seal decrypt → play
-- Use `@aspect-build/seal-sdk` or direct Seal contract calls
-
-### AI Tagging
-
-- Server-side API route `/api/tag` using Vercel AI SDK (`generateObject` or `generateText` with structured output)
+- Server-side API route `/api/generate-metadata` using Vercel AI SDK (`generateObject` or `generateText` with structured output)
 - Send keyframe images (base64) to vision model via Vercel AI SDK provider (OpenAI, Google, etc.)
-- Return structured tags: `{ categories: string[], objects: string[], mood: string, description: string }`
-- Store flattened tag strings on-chain for discoverability
-- Rate limit: max 1 tagging request per upload
+- Return structured metadata: `{ title: string, description: string, tags: string[] }`
+- Store metadata on-chain for discoverability
+- Rate limit: max 1 metadata generation request per upload
 
-### Indexing
+### Gas Sponsorship
 
-- MVP: Use Sui RPC `queryEvents` + `getOwnedObjects` for basic queries
-- Structure events for efficient filtering by tag, owner, timestamp
-- If performance is insufficient: add a lightweight indexer (Sui indexer framework or custom with PostgreSQL)
+- Use Sui Gas Station or sponsored transaction pool for all user operations
+- Config: store sponsor info in env/config
+- All transactions (create_clip, like, view, unlock) are sponsored
+- Platform covers gas costs; revenue comes from private video unlocks
+
+### Video Visibility & Payment
+
+- **Public videos:** Anyone can watch for free
+- **Private videos:** Must unlock to watch; creator sets unlock price in SUI
+- **Payment flow:** User pays SUI → amount goes to clip creator → video unlocks for payer
+- Track unlock status per user in local state or on-chain (unlocked_users table/map)
 
 ---
 
@@ -231,7 +245,7 @@ pnpm lint
 
 ## Do Not
 
-- Do NOT add features beyond MVP scope (no comments, no playlists, no monetization, no live streaming)
+- Do NOT add features beyond MVP scope (no comments, no playlists, no live streaming)
 - Do NOT use `any` type in TypeScript
 - Do NOT store video files on-chain — only metadata and blob references
 - Do NOT call AI APIs from the client — always proxy through Next.js API routes using Vercel AI SDK
@@ -243,3 +257,5 @@ pnpm lint
 - Do NOT put UI rendering, JSX, or React hooks in lib files — those are pure utility functions
 - Do NOT put anything other than route wiring (import view + render) in `/apps/web/src/app/*` page files
 - Do NOT combine multiple features, hooks, or unrelated logic into a single file
+- Do NOT write code comments — keep code self-explanatory without comments
+- Do NOT skip gas sponsorship on user transactions — always sponsor

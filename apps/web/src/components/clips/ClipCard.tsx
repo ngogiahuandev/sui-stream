@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { EyeIcon, HeartIcon, PencilIcon, PlayIcon } from 'lucide-react';
+import { CoinsIcon, EyeIcon, HeartIcon, PencilIcon, PlayIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 import { useImageAspectRatio } from '@/hooks/useImageAspectRatio';
 import { useClipCounts } from '@/hooks/useClipCounts';
+import { useClipHasCampaign } from '@/hooks/useClipHasCampaign';
 import { cn } from '@/lib/utils';
 import type { Clip } from '@/types/clip';
 
@@ -45,6 +46,7 @@ export function ClipCardBento({
   const thumbnailUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const { ratio, isLoaded } = useImageAspectRatio(thumbnailUrl);
   const { views, likes } = useClipCounts(clip.id, clip.views, clip.likes);
+  const hasCampaign = useClipHasCampaign(clip.id);
   const aspectStyle =
     isLoaded && ratio
       ? { aspectRatio: String(ratio) }
@@ -98,6 +100,12 @@ export function ClipCardBento({
       >
         {formatDuration(clip.durationSeconds)}
       </Badge>
+      {hasCampaign ? (
+        <Badge className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-yellow-500/90 px-2 py-0.5 text-xs text-black">
+          <CoinsIcon className="size-3" />
+          Reward
+        </Badge>
+      ) : null}
       <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-12 opacity-0 transition group-hover:opacity-100">
         <h3 className="line-clamp-2 text-sm font-medium text-white">
           {clip.title}
@@ -121,6 +129,7 @@ export function ClipCard({ clip, className }: ClipCardProps) {
   const thumbnailUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const { ratio, isLoaded } = useImageAspectRatio(thumbnailUrl);
   const { views, likes } = useClipCounts(clip.id, clip.views, clip.likes);
+  const hasCampaign = useClipHasCampaign(clip.id);
   const aspectStyle =
     isLoaded && ratio
       ? { aspectRatio: String(ratio) }
@@ -155,6 +164,12 @@ export function ClipCard({ clip, className }: ClipCardProps) {
         >
           {formatDuration(clip.durationSeconds)}
         </Badge>
+        {hasCampaign ? (
+          <Badge className="absolute top-2 left-2 flex items-center gap-1 rounded-full bg-yellow-500/90 px-2 py-0.5 text-xs text-black">
+            <CoinsIcon className="size-3" />
+            Reward
+          </Badge>
+        ) : null}
         <div className="absolute right-0 bottom-0 left-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-12 opacity-0 transition group-hover:opacity-100">
           <h3 className="line-clamp-2 text-sm font-medium text-white">
             {clip.title}

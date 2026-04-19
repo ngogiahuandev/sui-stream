@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { BarChart3Icon, PencilIcon } from 'lucide-react';
+import { BarChart3Icon, CoinsIcon, PencilIcon } from 'lucide-react';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BackButton } from '@/components/common/BackButton';
 import { EditClipForm } from '@/components/my-clip/EditClipForm';
 import { ClipAnalytics } from '@/components/my-clip/ClipAnalytics';
+import { CampaignAnalytics } from '@/components/my-clip/CampaignAnalytics';
 import { useClip } from '@/hooks/useClip';
+import { useCampaignForClip } from '@/hooks/useCampaignForClip';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 
 interface MyClipViewProps {
@@ -27,6 +29,7 @@ function formatDuration(seconds: number): string {
 export function MyClipView({ id }: MyClipViewProps) {
   const account = useCurrentAccount();
   const { clip, isLoading, isError } = useClip(id);
+  const { data: campaign } = useCampaignForClip(isLoading || isError ? undefined : id);
 
   if (isLoading) {
     return (
@@ -101,6 +104,13 @@ export function MyClipView({ id }: MyClipViewProps) {
             <BarChart3Icon className="size-3.5" />
             Analytics
           </TabsTrigger>
+          <TabsTrigger value="campaign" className="gap-1.5">
+            <CoinsIcon className="size-3.5" />
+            Campaign
+            {campaign ? (
+              <span className="ml-1 size-1.5 rounded-full bg-yellow-500" />
+            ) : null}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="edit">
           <EditClipForm clip={clip} />
@@ -111,6 +121,12 @@ export function MyClipView({ id }: MyClipViewProps) {
             clipOwner={clip.owner}
             createdAtMs={clip.createdAtMs}
             fallbackViews={clip.views}
+          />
+        </TabsContent>
+        <TabsContent value="campaign">
+          <CampaignAnalytics
+            clipId={clip.id}
+            createdAtMs={clip.createdAtMs}
           />
         </TabsContent>
       </Tabs>

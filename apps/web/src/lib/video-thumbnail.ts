@@ -235,13 +235,15 @@ export async function extractFramesAtIntervals(
       throw new Error('Video duration is unavailable');
     }
 
-    const frameCount = Math.min(Math.floor(duration / intervalSeconds), 6);
-    if (frameCount < 1) return [];
+    const frameCount = Math.min(
+      6,
+      Math.max(1, Math.floor(duration / intervalSeconds))
+    );
 
     const frames: VideoFrame[] = [];
     for (let i = 1; i <= frameCount; i += 1) {
       const timestampSeconds = Math.min(
-        intervalSeconds * i,
+        (duration * i) / (frameCount + 1),
         Math.max(0, duration - 0.1)
       );
       await seekTo(video, timestampSeconds);

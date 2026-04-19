@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   CalendarIcon,
   EyeIcon,
@@ -18,10 +18,12 @@ import { VoteButtons } from '@/components/watch/VoteButtons';
 import { CommentsSection } from '@/components/comments/CommentsSection';
 import { DonationList } from '@/components/my-videos/DonationList';
 import { DonateButton } from '@/components/donate/DonateButton';
+import { CampaignProgressPanel } from '@/components/watch/CampaignProgressPanel';
 import { useClip } from '@/hooks/useClip';
 import { useClipViewCount } from '@/hooks/useClipViewCount';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { useDonationsReceived } from '@/hooks/useDonationsReceived';
+import { useCampaignForClip } from '@/hooks/useCampaignForClip';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 import { isPortraitVideo } from '@/lib/video-aspect';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -43,6 +45,27 @@ export function WatchView({ id }: WatchViewProps) {
   const { data: donationData } = useDonationsReceived(
     isLoading || isError || !clip ? undefined : clip.owner,
     clip?.id
+  );
+  const { data: campaign } = useCampaignForClip(clip?.id);
+
+  const [watchedSeconds, setWatchedSeconds] = useState(0);
+  const watchedRef = useRef(0);
+  const lastTimeRef = useRef<number | null>(null);
+
+  const handleTimeUpdate = useCallback(
+    (currentTime: number) => {
+      const last = lastTimeRef.current;
+      if (last !== null) {
+        const delta = currentTime - last;
+        if (delta > 0 && delta <= 1.5) {
+          watchedRef.current += delta;
+          setWatchedSeconds(Math.floor(watchedRef.current));
+        }
+      }
+      lastTimeRef.current = currentTime;
+      notifyTimeUpdate(currentTime);
+    },
+    [notifyTimeUpdate]
   );
 
   const handleDimensionsDetected = useCallback(
@@ -82,10 +105,19 @@ export function WatchView({ id }: WatchViewProps) {
     <VideoPlayer
       src={getWalrusBlobUrl(clip.blobId)}
       poster={posterUrl}
-      onTimeUpdate={notifyTimeUpdate}
+      onTimeUpdate={handleTimeUpdate}
       onDimensionsDetected={handleDimensionsDetected}
     />
   );
+
+  const campaignPanel = campaign ? (
+    <CampaignProgressPanel
+      campaign={campaign}
+      clipId={clip.id}
+      watchedSeconds={watchedSeconds}
+      clipDurationSeconds={clip.durationSeconds}
+    />
+  ) : null;
 
   const details = (
     <div className="flex flex-col gap-5">
@@ -183,6 +215,7 @@ export function WatchView({ id }: WatchViewProps) {
             {tabContent}
           </div>
         </div>
+        {campaignPanel}
       </section>
     );
   }
@@ -193,6 +226,7 @@ export function WatchView({ id }: WatchViewProps) {
       {videoPlayer}
       {details}
       {tabContent}
+      {campaignPanel}
     </section>
   );
 }

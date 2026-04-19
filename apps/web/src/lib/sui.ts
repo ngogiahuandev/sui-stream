@@ -3,6 +3,8 @@ import { bcs } from '@mysten/sui/bcs';
 import type { SuiObjectResponse } from '@mysten/sui/jsonRpc';
 import {
   SUI_CLOCK_OBJECT_ID,
+  SUI_STREAM_CAMPAIGN_MODULE,
+  SUI_STREAM_CAMPAIGN_PACKAGE_ID,
   SUI_STREAM_DONATE_PACKAGE_ID,
   SUI_STREAM_MODULE,
   SUI_STREAM_PACKAGE_ID,
@@ -276,6 +278,94 @@ interface RawClipFields {
   likes: string;
   views: string;
   created_at_ms: string;
+}
+
+function requireCampaignPackageId(): string {
+  if (!SUI_STREAM_CAMPAIGN_PACKAGE_ID) {
+    throw new Error(
+      'NEXT_PUBLIC_SUI_STREAM_CAMPAIGN_PACKAGE is not set. Deploy the Move package and set the env var.'
+    );
+  }
+  return SUI_STREAM_CAMPAIGN_PACKAGE_ID;
+}
+
+export interface CreateCampaignTxInput {
+  creator: string;
+  clipId: string;
+  rewardPerClaimMist: bigint;
+  maxClaims: bigint;
+  includeLike: boolean;
+  includeComment: boolean;
+  attestationPubkey: Uint8Array;
+  expiresAtMs: bigint;
+  totalDepositMist: bigint;
+}
+
+export function buildCreateCampaignTx(input: CreateCampaignTxInput): Transaction {
+  const pkg = requireCampaignPackageId();
+  const tx = new Transaction();
+  tx.setSender(input.creator);
+  tx.setGasOwner(input.creator);
+
+  const [deposit] = tx.splitCoins(tx.gas, [
+    tx.pure.u64(input.totalDepositMist),
+  ]);
+  const pubkeyArg = tx.pure(
+    bcs.vector(bcs.u8()).serialize(Array.from(input.attestationPubkey))
+  );
+
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_CAMPAIGN_MODULE}::create_campaign`,
+    arguments: [
+      tx.pure.id(input.clipId),
+      tx.pure.u64(input.rewardPerClaimMist),
+      tx.pure.u64(input.maxClaims),
+      tx.pure.bool(input.includeLike),
+      tx.pure.bool(input.includeComment),
+      pubkeyArg,
+      tx.pure.u64(input.expiresAtMs),
+      deposit,
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+
+  return tx;
+}
+
+export interface ClaimRewardTxInput {
+  campaignId: string;
+  viewer: string;
+  clipId: string;
+  nonce: Uint8Array;
+  expiryMs: bigint;
+  signature: Uint8Array;
+}
+
+export function buildClaimRewardTx(input: ClaimRewardTxInput): Transaction {
+  const pkg = requireCampaignPackageId();
+  const tx = new Transaction();
+
+  const nonceArg = tx.pure(
+    bcs.vector(bcs.u8()).serialize(Array.from(input.nonce))
+  );
+  const sigArg = tx.pure(
+    bcs.vector(bcs.u8()).serialize(Array.from(input.signature))
+  );
+
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_CAMPAIGN_MODULE}::claim_reward_for`,
+    arguments: [
+      tx.object(input.campaignId),
+      tx.pure.address(input.viewer),
+      nonceArg,
+      tx.pure.u64(input.expiryMs),
+      sigArg,
+      tx.pure.id(input.clipId),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+
+  return tx;
 }
 
 export function parseClipObject(obj: SuiObjectResponse): Clip | null {

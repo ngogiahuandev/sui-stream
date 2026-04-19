@@ -185,6 +185,7 @@ Home feed: query indexer for recent clips, sorted by created_at
 ### Creator Tools
 
 - **Creator Dashboard:** Analytics showing views, watch time, earnings (future). Aggregate from on-chain events. See `guides/CREATOR_DASHBOARD.md`.
+- **Mission Rewards (Campaign model):** Per-clip `Campaign` is a contract-custodied shared Move object. Creator pre-funds the exact total (`reward_per_claim × max_claims`). VIEW mission is system-required (contract forces it on); LIKE and COMMENT are optional creator opt-ins; each mission counts once per viewer. Viewers must complete **all** enabled missions to claim — single composite attestation, one claim per viewer per campaign, full reward. No mid-life creator withdrawal; leftovers are reclaimable only after expiry. Sponsor wallet covers gas only. See `guides/MISSION_REWARDS.md`.
 
 ### Walrus Integration
 

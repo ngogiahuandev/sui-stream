@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
+import {
+  useCurrentAccount,
+  useSignAndExecuteTransaction,
+  useSuiClient,
+} from '@mysten/dapp-kit';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   extractThumbnail,
@@ -18,18 +22,29 @@ import type {
   VideoFrame,
 } from '@/lib/video-thumbnail';
 import { uploadBlobToWalrus } from '@/lib/walrus';
-import { buildCreateClipTx } from '@/lib/sui';
+import { buildCreateCampaignTx, buildCreateClipTx } from '@/lib/sui';
 import { executeAsSponsor } from '@/lib/sponsor-client';
-import { SUI_STREAM_MODULE, SUI_STREAM_PACKAGE_ID } from '@/lib/constants';
+import {
+  MIST_PER_SUI,
+  SUI_STREAM_MODULE,
+  SUI_STREAM_PACKAGE_ID,
+} from '@/lib/constants';
+import { base64ToBytes } from '@/lib/attestation';
 import { useExistingTags } from '@/hooks/useExistingTags';
 import {
+  durationDaysToMs,
   parseTags,
   uploadFormSchema,
   type UploadFormValues,
 } from '@/lib/validation/upload-schema';
 import { ACCEPTED_VIDEO_MIME_TYPES, CLIP_LIMITS } from '@/types/clip';
 
-export type UploadStepId = 'walrus' | 'publish' | 'index' | 'redirect';
+export type UploadStepId =
+  | 'walrus'
+  | 'publish'
+  | 'campaign'
+  | 'index'
+  | 'redirect';
 export type UploadStepStatus = 'pending' | 'active' | 'complete' | 'error';
 
 export interface UploadStep {
@@ -41,9 +56,22 @@ export interface UploadStep {
 const INITIAL_UPLOAD_STEPS: UploadStep[] = [
   { id: 'walrus', label: 'Uploading video & thumbnail to Walrus', status: 'pending' },
   { id: 'publish', label: 'Publishing clip on Sui', status: 'pending' },
+  { id: 'campaign', label: 'Funding reward campaign', status: 'pending' },
   { id: 'index', label: 'Indexing new clip', status: 'pending' },
   { id: 'redirect', label: 'Redirecting to Discover', status: 'pending' },
 ];
+
+const INITIAL_DEFAULTS: UploadFormValues = {
+  title: '',
+  description: '',
+  tagsInput: '',
+  missionsEnabled: false,
+  includeLike: false,
+  includeComment: false,
+  rewardSui: 0.01,
+  maxClaims: 100,
+  durationDays: '30',
+};
 
 export interface UseClipUploadResult {
   form: UseFormReturn<UploadFormValues>;
@@ -163,12 +191,9 @@ export function useClipUpload(): UseClipUploadResult {
     resolver: zodResolver(uploadFormSchema),
     mode: 'onTouched',
     reValidateMode: 'onChange',
-    defaultValues: {
-      title: '',
-      description: '',
-      tagsInput: '',
-    },
+    defaultValues: INITIAL_DEFAULTS,
   });
+  const { mutateAsync: signAndExecute } = useSignAndExecuteTransaction();
 
   const [file, setFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -214,11 +239,7 @@ export function useClipUpload(): UseClipUploadResult {
 
   const clearFile = useCallback(() => {
     resetFileState();
-    form.reset({
-      title: '',
-      description: '',
-      tagsInput: '',
-    });
+    form.reset(INITIAL_DEFAULTS);
   }, [resetFileState, form]);
 
   const onFileSelected = useCallback(
@@ -419,12 +440,82 @@ export function useClipUpload(): UseClipUploadResult {
           recipient: account.address,
         });
         const target = `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::create_clip`;
-        await executeAsSponsor({
+        const publishResult = await executeAsSponsor({
           transaction: tx,
           client: suiClient,
           allowedMoveCallTargets: [target],
         });
         setStepStatus('publish', 'complete');
+
+        if (values.missionsEnabled) {
+          setStepStatus('campaign', 'active');
+          try {
+            await suiClient
+              .waitForTransaction({ digest: publishResult.digest })
+              .catch(() => undefined);
+            const txData = await suiClient.getTransactionBlock({
+              digest: publishResult.digest,
+              options: { showObjectChanges: true },
+            });
+            const clipChange = txData.objectChanges?.find(
+              (c) =>
+                c.type === 'created' &&
+                typeof c.objectType === 'string' &&
+                c.objectType.endsWith('::clip::Clip')
+            );
+            if (!clipChange || clipChange.type !== 'created') {
+              throw new Error('Could not locate new clip on chain');
+            }
+            const clipId = clipChange.objectId;
+
+            const pubkeyB64 = process.env.NEXT_PUBLIC_ATTESTATION_PUBKEY ?? '';
+            if (!pubkeyB64) {
+              throw new Error('NEXT_PUBLIC_ATTESTATION_PUBKEY is not set');
+            }
+            const attestationPubkey = base64ToBytes(pubkeyB64);
+
+            const rewardMist = BigInt(
+              Math.round(values.rewardSui * MIST_PER_SUI)
+            );
+            const maxClaims = BigInt(values.maxClaims);
+            const totalDepositMist = rewardMist * maxClaims;
+            const expiresAtMs = BigInt(
+              Date.now() + durationDaysToMs(values.durationDays)
+            );
+
+            const campTx = buildCreateCampaignTx({
+              creator: account.address,
+              clipId,
+              rewardPerClaimMist: rewardMist,
+              maxClaims,
+              includeLike: values.includeLike,
+              includeComment: values.includeComment,
+              attestationPubkey,
+              expiresAtMs,
+              totalDepositMist,
+            });
+            const chain = `sui:${process.env.NEXT_PUBLIC_SUI_NETWORK ?? 'testnet'}` as `${string}:${string}`;
+            const result = await signAndExecute({
+              transaction: campTx,
+              chain,
+            });
+            await suiClient
+              .waitForTransaction({ digest: result.digest })
+              .catch(() => undefined);
+            setStepStatus('campaign', 'complete');
+            toast.success('Reward campaign funded.');
+          } catch (error) {
+            console.error('[campaign] failed to create', error);
+            setStepStatus('campaign', 'error');
+            toast.error(
+              error instanceof Error
+                ? `Clip published, but campaign failed: ${error.message}`
+                : 'Clip published, but campaign creation failed.'
+            );
+          }
+        } else {
+          setStepStatus('campaign', 'complete');
+        }
 
         setStepStatus('index', 'active');
         await new Promise((resolve) => setTimeout(resolve, 2500));
@@ -459,6 +550,7 @@ export function useClipUpload(): UseClipUploadResult {
       queryClient,
       router,
       setStepStatus,
+      signAndExecute,
     ]
   );
 

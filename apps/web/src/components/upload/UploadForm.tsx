@@ -1,39 +1,64 @@
 'use client';
 
-import { Loader2Icon, Ban, UploadCloudIcon, SparklesIcon } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { useState } from 'react';
+import type { FieldErrors } from 'react-hook-form';
 import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from '@/components/ui/field';
+  Ban,
+  CoinsIcon,
+  Loader2Icon,
+  SparklesIcon,
+  UploadCloudIcon,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import { UploadDropzone } from '@/components/upload/UploadDropzone';
 import { VideoPreview } from '@/components/upload/VideoPreview';
 import { UploadProgressOverlay } from '@/components/upload/UploadProgressOverlay';
+import { UploadOverviewTab } from '@/components/upload/UploadOverviewTab';
+import { UploadCampaignTab } from '@/components/upload/UploadCampaignTab';
 import { useClipUpload } from '@/hooks/useClipUpload';
-import { CLIP_LIMITS } from '@/types/clip';
+import { cn } from '@/lib/utils';
+import type { UploadFormValues } from '@/lib/validation/upload-schema';
+
+type TabValue = 'overview' | 'campaign';
+
+const OVERVIEW_FIELDS = ['title', 'description', 'tagsInput'] as const;
+const CAMPAIGN_FIELDS = [
+  'missionsEnabled',
+  'includeLike',
+  'includeComment',
+  'rewardSui',
+  'maxClaims',
+  'durationDays',
+] as const;
+
+function hasOverviewErrors(errors: FieldErrors<UploadFormValues>): boolean {
+  return OVERVIEW_FIELDS.some((k) => Boolean(errors[k]));
+}
+
+function hasCampaignErrors(errors: FieldErrors<UploadFormValues>): boolean {
+  return CAMPAIGN_FIELDS.some((k) => Boolean(errors[k]));
+}
 
 export function UploadForm() {
   const upload = useClipUpload();
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = upload.form;
+  const [tab, setTab] = useState<TabValue>('overview');
 
-  const title = upload.form.watch('title') ?? '';
-  const description = upload.form.watch('description') ?? '';
+  const submit = upload.form.handleSubmit(upload.onSubmit, (errors) => {
+    if (hasOverviewErrors(errors)) setTab('overview');
+    else if (hasCampaignErrors(errors)) setTab('campaign');
+  });
+
+  const overviewInvalid = hasOverviewErrors(upload.form.formState.errors);
+  const campaignInvalid = hasCampaignErrors(upload.form.formState.errors);
 
   return (
-    <form
-      onSubmit={handleSubmit(upload.onSubmit)}
-      className="relative flex flex-col gap-6"
-      noValidate
-    >
+    <form onSubmit={submit} className="relative flex flex-col gap-6" noValidate>
       <UploadProgressOverlay
         open={upload.isSubmitting}
         steps={upload.uploadSteps}
@@ -62,78 +87,40 @@ export function UploadForm() {
         <p className="text-destructive text-sm">{upload.validationError}</p>
       ) : null}
 
-      <Button
-        type="button"
-        variant="default"
-        onClick={upload.generateWithAI}
-        disabled={
-          upload.isGeneratingThumbnail || !upload.file || upload.isSubmitting
-        }
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as TabValue)}
+        className="w-full"
       >
-        {upload.isGenerating ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <SparklesIcon className="size-4" />
-        )}
-        <span>Generate title, description &amp; tags with AI</span>
-      </Button>
+        <TabsList>
+          <TabsTrigger type="button" value="overview">
+            <SparklesIcon />
+            <span>Overview</span>
+            {overviewInvalid ? <ErrorDot /> : null}
+          </TabsTrigger>
+          <TabsTrigger type="button" value="campaign">
+            <CoinsIcon />
+            <span>Campaign</span>
+            {campaignInvalid ? <ErrorDot /> : null}
+          </TabsTrigger>
+        </TabsList>
 
-      <FieldSet disabled={!upload.file || upload.isGenerating}>
-        <FieldGroup>
-          <Field data-invalid={errors.title ? true : undefined}>
-            <FieldLabel htmlFor="clip-title">Title</FieldLabel>
-            <Input
-              id="clip-title"
-              placeholder="Give your clip a catchy title"
-              maxLength={CLIP_LIMITS.maxTitleLength}
-              aria-invalid={errors.title ? true : undefined}
-              disabled={upload.isGenerating || upload.isSubmitting}
-              {...register('title')}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <FieldError errors={errors.title ? [errors.title] : undefined} />
-              <span className="text-muted-foreground ml-auto text-xs">
-                {title.length}/{CLIP_LIMITS.maxTitleLength}
-              </span>
-            </div>
-          </Field>
+        <TabsContent
+          value="overview"
+          forceMount
+          className="mt-6 data-[state=inactive]:hidden"
+        >
+          <UploadOverviewTab upload={upload} />
+        </TabsContent>
 
-          <Field data-invalid={errors.description ? true : undefined}>
-            <FieldLabel htmlFor="clip-description">Description</FieldLabel>
-            <Textarea
-              id="clip-description"
-              placeholder="What's this clip about?"
-              maxLength={CLIP_LIMITS.maxDescriptionLength}
-              rows={4}
-              aria-invalid={errors.description ? true : undefined}
-              disabled={upload.isGenerating || upload.isSubmitting}
-              {...register('description')}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <FieldError
-                errors={errors.description ? [errors.description] : undefined}
-              />
-              <span className="text-muted-foreground ml-auto text-xs">
-                {description.length}/{CLIP_LIMITS.maxDescriptionLength}
-              </span>
-            </div>
-          </Field>
-
-          <Field data-invalid={errors.tagsInput ? true : undefined}>
-            <FieldLabel htmlFor="clip-tags">Tags</FieldLabel>
-            <Input
-              id="clip-tags"
-              placeholder="comma, separated, tags"
-              aria-invalid={errors.tagsInput ? true : undefined}
-              disabled={upload.isGenerating || upload.isSubmitting}
-              {...register('tagsInput')}
-            />
-            <FieldError
-              errors={errors.tagsInput ? [errors.tagsInput] : undefined}
-            />
-          </Field>
-        </FieldGroup>
-      </FieldSet>
+        <TabsContent
+          value="campaign"
+          forceMount
+          className="mt-6 data-[state=inactive]:hidden"
+        >
+          <UploadCampaignTab upload={upload} />
+        </TabsContent>
+      </Tabs>
 
       <div className="flex items-center justify-end gap-3 border-t pt-6">
         <Button
@@ -164,5 +151,14 @@ export function UploadForm() {
         </Button>
       </div>
     </form>
+  );
+}
+
+function ErrorDot() {
+  return (
+    <span
+      aria-hidden
+      className={cn('bg-destructive ml-1 inline-block size-1.5 rounded-full')}
+    />
   );
 }

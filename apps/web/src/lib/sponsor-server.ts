@@ -27,6 +27,7 @@ const ALLOWED_TARGETS = new Set(
         `${PACKAGE_ID}::clip::create_comment`,
         `${PACKAGE_ID}::clip::delete_comment`,
         `${PACKAGE_ID}::clip::update_metadata`,
+        `${PACKAGE_ID}::campaign::claim_reward_for`,
       ]
     : []
 );

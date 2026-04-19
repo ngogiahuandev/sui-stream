@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   CalendarIcon,
   EyeIcon,
@@ -37,8 +37,16 @@ export function WatchView({ id }: WatchViewProps) {
     durationSeconds: clip?.durationSeconds,
   });
   const { views } = useClipViewCount(clip?.id, clip?.views ?? 0);
+  const [isPortrait, setIsPortrait] = useState(false);
   const { data: donationData } = useDonationsReceived(
     isLoading || isError || !clip ? undefined : clip.owner
+  );
+
+  const handleDimensionsDetected = useCallback(
+    (width: number, height: number) => {
+      setIsPortrait(isPortraitVideo(width, height));
+    },
+    []
   );
 
   if (isLoading) {
@@ -64,7 +72,6 @@ export function WatchView({ id }: WatchViewProps) {
   }
 
   const posterUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
-  const isPortrait = false;
 
   const backButton = <BackButton />;
 
@@ -73,6 +80,7 @@ export function WatchView({ id }: WatchViewProps) {
       src={getWalrusBlobUrl(clip.blobId)}
       poster={posterUrl}
       onTimeUpdate={notifyTimeUpdate}
+      onDimensionsDetected={handleDimensionsDetected}
     />
   );
 
@@ -163,11 +171,11 @@ export function WatchView({ id }: WatchViewProps) {
     return (
       <section className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-6">
         {backButton}
-        <div className="grid gap-6 md:grid-cols-[1fr_1.5fr]">
-          <div className="grid-cols-1 md:sticky md:top-4 md:self-start">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,3fr)_minmax(0,4fr)]">
+          <div className="mx-auto w-full max-w-[260px] md:max-w-none">
             {videoPlayer}
           </div>
-          <div className="flex grid-cols-2 flex-col gap-6">
+          <div className="flex flex-col gap-6 overflow-hidden">
             {details}
             {tabContent}
           </div>

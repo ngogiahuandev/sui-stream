@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
@@ -71,18 +71,39 @@ function TagFilterBar({
   onTagClick,
   onTagRemove,
 }: TagFilterBarProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   if (availableTags.length === 0) return null;
 
   const isSelected = (tag: string) => selectedTags.includes(tag);
 
+  const sorted = [...availableTags].sort((a, b) => {
+    const aSelected = selectedTags.includes(a);
+    const bSelected = selectedTags.includes(b);
+    if (aSelected && !bSelected) return -1;
+    if (!aSelected && bSelected) return 1;
+    return 0;
+  });
+
+  const handleClick = (tag: string) => {
+    if (isSelected(tag)) {
+      onTagRemove(tag);
+    } else {
+      onTagClick(tag);
+    }
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+    });
+  };
+
   return (
-    <div className="scrollbar-hide flex gap-2 overflow-x-auto">
-      {availableTags.map((tag) => (
+    <div ref={scrollRef} className="scrollbar-hide flex gap-2 overflow-x-auto">
+      {sorted.map((tag) => (
         <Button
           key={tag}
-          variant="secondary"
+          variant={isSelected(tag) ? 'default' : 'secondary'}
           size="sm"
-          onClick={() => (isSelected(tag) ? onTagRemove(tag) : onTagClick(tag))}
+          onClick={() => handleClick(tag)}
         >
           {formatTag(tag)}
         </Button>

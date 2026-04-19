@@ -31,6 +31,7 @@ function suiToMist(amountSui: number): bigint {
 }
 
 export interface DonateInput {
+  clipId: string;
   recipient: string;
   amountSui: number;
   message?: string;
@@ -90,6 +91,7 @@ export function useDonate(): UseDonateResult {
           try {
             const tx = buildDonateTx({
               donor: account.address,
+              clipId: input.clipId,
               recipient,
               amountMist,
               message,

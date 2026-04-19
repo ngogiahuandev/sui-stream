@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
 import { buildTrackViewTx } from '@/lib/sui';
 import { executeAsSponsor } from '@/lib/sponsor-client';
+import { addWatchHistoryEntry } from '@/lib/watch-history-store';
 import {
   SUI_STREAM_MODULE,
   SUI_STREAM_PACKAGE_ID,
@@ -18,6 +19,7 @@ interface UseIncrementViewsOptions {
   clipId: string | undefined;
   durationSeconds: number | undefined;
   enabled?: boolean;
+  onViewTracked?: () => void;
 }
 
 interface UseIncrementViewsResult {
@@ -28,6 +30,7 @@ export function useIncrementViews({
   clipId,
   durationSeconds,
   enabled = true,
+  onViewTracked,
 }: UseIncrementViewsOptions): UseIncrementViewsResult {
   const suiClient = useSuiClient();
   const account = useCurrentAccount();
@@ -35,6 +38,8 @@ export function useIncrementViews({
   const lastTimeRef = useRef<number | null>(null);
   const watchedRef = useRef(0);
   const [hasFired, setHasFired] = useState(false);
+  const onViewTrackedRef = useRef(onViewTracked);
+  onViewTrackedRef.current = onViewTracked;
 
   useEffect(() => {
     if (!clipId) return;
@@ -78,12 +83,17 @@ export function useIncrementViews({
         allowedMoveCallTargets: [
           `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::track_view`,
         ],
-      }).catch((error) => {
-        console.warn('[views] failed to track view', error);
-        sessionFiredClips.delete(clipId);
-        firingRef.current = false;
-        setHasFired(false);
-      });
+      })
+        .then(() => {
+          addWatchHistoryEntry(clipId);
+          onViewTrackedRef.current?.();
+        })
+        .catch((error) => {
+          console.warn('[views] failed to track view', error);
+          sessionFiredClips.delete(clipId);
+          firingRef.current = false;
+          setHasFired(false);
+        });
     },
     [enabled, clipId, durationSeconds, suiClient, hasFired, account?.address]
   );

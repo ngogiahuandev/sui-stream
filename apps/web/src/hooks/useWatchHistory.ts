@@ -2,13 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
-import { CLIP_VIEWED_EVENT_TYPE } from '@/lib/constants';
 import { parseClipObject } from '@/lib/sui';
+import { getWatchHistory } from '@/lib/watch-history-store';
 import type { Clip } from '@/types/clip';
-
-interface ClipViewedPayload {
-  id: string;
-}
 
 export interface WatchHistoryEntry {
   clip: Clip;
@@ -23,46 +19,20 @@ interface UseWatchHistoryResult {
   refetch: () => void;
 }
 
-const MAX_EVENT_PAGES = 20;
-const EVENT_PAGE_LIMIT = 200;
-
 export function useWatchHistory(): UseWatchHistoryResult {
   const suiClient = useSuiClient();
   const account = useCurrentAccount();
-  const viewer = account?.address?.toLowerCase();
 
   const query = useQuery<WatchHistoryEntry[]>({
-    queryKey: ['watch-history', viewer],
-    enabled: Boolean(viewer && CLIP_VIEWED_EVENT_TYPE),
-    staleTime: 15_000,
+    queryKey: ['watch-history', account?.address],
+    enabled: Boolean(account?.address),
+    staleTime: 10_000,
     queryFn: async () => {
-      if (!viewer) return [];
+      const records = getWatchHistory();
+      if (records.length === 0) return [];
 
-      const latestByClip = new Map<string, number>();
-      let cursor: Parameters<typeof suiClient.queryEvents>[0]['cursor'] = null;
-
-      for (let i = 0; i < MAX_EVENT_PAGES; i += 1) {
-        const page = await suiClient.queryEvents({
-          query: { MoveEventType: CLIP_VIEWED_EVENT_TYPE },
-          cursor,
-          limit: EVENT_PAGE_LIMIT,
-          order: 'descending',
-        });
-        for (const ev of page.data) {
-          if (!ev.sender || ev.sender.toLowerCase() !== viewer) continue;
-          const payload = ev.parsedJson as ClipViewedPayload | undefined;
-          const clipId = payload?.id;
-          if (!clipId) continue;
-          const ts = Number(ev.timestampMs ?? 0);
-          const prev = latestByClip.get(clipId) ?? 0;
-          if (ts > prev) latestByClip.set(clipId, ts);
-        }
-        if (!page.hasNextPage || !page.nextCursor) break;
-        cursor = page.nextCursor;
-      }
-
-      const clipIds = Array.from(latestByClip.keys());
-      if (clipIds.length === 0) return [];
+      const clipIds = records.map((r) => r.clipId);
+      const tsMap = new Map(records.map((r) => [r.clipId, r.lastWatchedAtMs]));
 
       const objects = await suiClient.multiGetObjects({
         ids: clipIds,
@@ -75,7 +45,7 @@ export function useWatchHistory(): UseWatchHistoryResult {
         if (!clip) continue;
         entries.push({
           clip,
-          lastWatchedAtMs: latestByClip.get(clip.id) ?? 0,
+          lastWatchedAtMs: tsMap.get(clip.id) ?? 0,
         });
       }
 

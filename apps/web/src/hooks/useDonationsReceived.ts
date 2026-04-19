@@ -5,12 +5,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useSuiClient } from '@mysten/dapp-kit';
 import {
   DONATION_SENT_EVENT_TYPE,
+  DONATION_SENT_V2_EVENT_TYPE,
   MIST_PER_SUI,
   SUI_STREAM_MODULE,
   SUI_STREAM_PACKAGE_ID,
   SUI_STREAM_PACKAGE_ORIGINAL_ID,
 } from '@/lib/constants';
 import type { TimelinePoint } from '@/hooks/useUserAnalytics';
+
+const ZERO_ID = '0x' + '0'.repeat(64);
 
 function normalizeAddress(value: string | null | undefined): string {
   if (!value) return '';
@@ -21,6 +24,7 @@ function normalizeAddress(value: string | null | undefined): string {
 }
 
 export interface DonationEntry {
+  clipId: string;
   donor: string;
   recipient: string;
   amountMist: bigint;
@@ -38,6 +42,7 @@ export interface DonationsReceivedData {
 }
 
 interface DonationPayload {
+  clip_id: string;
   donor: string;
   recipient: string;
   amount: string | number;
@@ -56,18 +61,17 @@ async function fetchAllDonations(
     digest: string;
   }[] = [];
 
-  const donationSuffix = `::${SUI_STREAM_MODULE}::DonationSent`;
+  const donationSuffixV1 = `::${SUI_STREAM_MODULE}::DonationSent`;
+  const donationSuffixV2 = `::${SUI_STREAM_MODULE}::DonationSentV2`;
   const tryFilters: Parameters<typeof client.queryEvents>[0]['query'][] = [];
 
   console.info('[donations] trying filters', {
     DONATION_SENT_EVENT_TYPE,
+    DONATION_SENT_V2_EVENT_TYPE,
     SUI_STREAM_PACKAGE_ORIGINAL_ID,
     SUI_STREAM_PACKAGE_ID,
   });
 
-  if (DONATION_SENT_EVENT_TYPE) {
-    tryFilters.push({ MoveEventType: DONATION_SENT_EVENT_TYPE });
-  }
   if (SUI_STREAM_PACKAGE_ORIGINAL_ID) {
     tryFilters.push({
       MoveEventModule: {
@@ -102,7 +106,10 @@ async function fetchAllDonations(
         });
         for (const ev of page.data) {
           if (!ev.parsedJson) continue;
-          if (!ev.type?.endsWith(donationSuffix)) continue;
+          const isDonation =
+            ev.type?.endsWith(donationSuffixV1) ||
+            ev.type?.endsWith(donationSuffixV2);
+          if (!isDonation) continue;
           const payload = ev.parsedJson as DonationPayload;
           const ts = Number(payload.created_at_ms ?? ev.timestampMs ?? 0);
           if (!ts) continue;
@@ -162,13 +169,15 @@ const EMPTY: DonationsReceivedData = {
 };
 
 export function useDonationsReceived(
-  recipient: string | undefined
+  recipient: string | undefined,
+  clipId?: string
 ): UseDonationsReceivedResult {
   const suiClient = useSuiClient();
   const target = normalizeAddress(recipient);
+  const clipFilter = clipId ? normalizeAddress(clipId) : undefined;
 
   const query = useQuery<DonationsReceivedData>({
-    queryKey: ['donations-received', target],
+    queryKey: ['donations-received', target, clipFilter ?? ''],
     enabled: Boolean(target),
     staleTime: 15_000,
     queryFn: async () => {
@@ -190,15 +199,12 @@ export function useDonationsReceived(
       const filtered = all
         .filter((ev) => {
           const recipientNorm = normalizeAddress(ev.payload.recipient);
-          const matches = recipientNorm === target;
-          if (!matches) {
-            console.info('[donations] recipient mismatch', {
-              raw: ev.payload.recipient,
-              normalized: recipientNorm,
-              target,
-            });
+          if (recipientNorm !== target) return false;
+          if (clipFilter) {
+            const evClipId = normalizeAddress(ev.payload.clip_id);
+            if (evClipId !== clipFilter && evClipId !== ZERO_ID) return false;
           }
-          return matches;
+          return true;
         })
         .sort((a, b) => a.timestampMs - b.timestampMs);
 
@@ -213,6 +219,7 @@ export function useDonationsReceived(
         totalMist += amountMist;
         runningSui += amountSui;
         donations.push({
+          clipId: ev.payload.clip_id ?? '',
           donor: ev.payload.donor,
           recipient: ev.payload.recipient,
           amountMist,

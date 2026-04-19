@@ -32,14 +32,17 @@ interface WatchViewProps {
 
 export function WatchView({ id }: WatchViewProps) {
   const { clip, isLoading, isError } = useClip(id);
+  const [viewBump, setViewBump] = useState(0);
   const { notifyTimeUpdate } = useIncrementViews({
     clipId: clip?.id,
     durationSeconds: clip?.durationSeconds,
+    onViewTracked: useCallback(() => setViewBump(1), []),
   });
   const { views } = useClipViewCount(clip?.id, clip?.views ?? 0);
   const [isPortrait, setIsPortrait] = useState(false);
   const { data: donationData } = useDonationsReceived(
-    isLoading || isError || !clip ? undefined : clip.owner
+    isLoading || isError || !clip ? undefined : clip.owner,
+    clip?.id
   );
 
   const handleDimensionsDetected = useCallback(
@@ -93,14 +96,14 @@ export function WatchView({ id }: WatchViewProps) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ClipOwnerCard owner={clip.owner} />
-            <DonateButton recipient={clip.owner} iconOnly variant="outline" />
+            <DonateButton clipId={clip.id} recipient={clip.owner} iconOnly variant="outline" />
           </div>
           <VoteButtons clipId={clip.id} />
         </div>
         <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
             <EyeIcon className="size-4" />
-            {views.toLocaleString()} views
+            {(views + viewBump).toLocaleString()} views
           </span>
           {Number.isFinite(clip.createdAtMs) && clip.createdAtMs > 0 ? (
             <span

@@ -217,6 +217,7 @@ export function buildDeleteCommentTx(
 
 export interface DonateTxInput {
   donor: string;
+  clipId: string;
   recipient: string;
   amountMist: bigint;
   message?: string;
@@ -234,8 +235,9 @@ export function buildDonateTx(input: DonateTxInput): Transaction {
   tx.setGasOwner(input.donor);
   const coin = tx.splitCoins(tx.gas, [tx.pure.u64(input.amountMist)]);
   tx.moveCall({
-    target: `${pkg}::${SUI_STREAM_MODULE}::donate`,
+    target: `${pkg}::${SUI_STREAM_MODULE}::donate_v2`,
     arguments: [
+      tx.pure.id(input.clipId),
       tx.pure.address(input.recipient),
       coin,
       tx.pure.string(input.message ?? ''),

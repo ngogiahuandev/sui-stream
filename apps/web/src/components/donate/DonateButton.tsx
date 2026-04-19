@@ -25,7 +25,10 @@ import {
 } from '@/hooks/useDonate';
 import { cn } from '@/lib/utils';
 
+const ZERO_ID = '0x' + '0'.repeat(64);
+
 interface DonateButtonProps {
+  clipId?: string;
   recipient: string;
   recipientLabel?: string;
   className?: string;
@@ -42,6 +45,7 @@ function shortAddress(address: string): string {
 }
 
 export function DonateButton({
+  clipId,
   recipient,
   recipientLabel,
   className,
@@ -78,6 +82,7 @@ export function DonateButton({
 
   const handleSubmit = async () => {
     const digest = await donate({
+      clipId: clipId ?? ZERO_ID,
       recipient,
       amountSui: parsedAmount,
       message,

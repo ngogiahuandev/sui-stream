@@ -108,6 +108,7 @@ export function MyClipView({ id }: MyClipViewProps) {
         <TabsContent value="analytics">
           <ClipAnalytics
             clipId={clip.id}
+            clipOwner={clip.owner}
             createdAtMs={clip.createdAtMs}
             fallbackViews={clip.views}
           />

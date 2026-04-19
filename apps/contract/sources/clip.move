@@ -532,6 +532,15 @@ public struct DonationSent has copy, drop {
     created_at_ms: u64,
 }
 
+public struct DonationSentV2 has copy, drop {
+    clip_id: ID,
+    donor: address,
+    recipient: address,
+    amount: u64,
+    message: String,
+    created_at_ms: u64,
+}
+
 public fun donate(
     recipient: address,
     payment: Coin<SUI>,
@@ -551,6 +560,37 @@ public fun donate(
     };
 
     event::emit(DonationSent {
+        donor,
+        recipient,
+        amount,
+        message,
+        created_at_ms: clock.timestamp_ms(),
+    });
+
+    transfer::public_transfer(payment, recipient);
+}
+
+public fun donate_v2(
+    clip_id: ID,
+    recipient: address,
+    payment: Coin<SUI>,
+    message: String,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    let donor = tx_context::sender(ctx);
+    assert!(donor != recipient, EDonateSelf);
+
+    let amount = coin::value(&payment);
+    assert!(amount > 0, EDonateZero);
+
+    if (string::length(&message) > 0) {
+        let words = count_words(&message);
+        assert!(words <= MAX_DONATE_MESSAGE_WORDS, EDonateMessageTooLong);
+    };
+
+    event::emit(DonationSentV2 {
+        clip_id,
         donor,
         recipient,
         amount,

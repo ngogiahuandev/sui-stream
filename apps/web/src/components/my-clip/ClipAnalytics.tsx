@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   EyeIcon,
+  HeartHandshakeIcon,
   MessageCircleIcon,
   RefreshCwIcon,
   ThumbsUpIcon,
@@ -16,13 +17,17 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart';
+import { ChannelAnalyticsChart } from '@/components/my-videos/ChannelAnalyticsChart';
+import { DonationList } from '@/components/my-videos/DonationList';
 import { useClipAnalytics, type TimelinePoint } from '@/hooks/useClipAnalytics';
+import { useDonationsReceived } from '@/hooks/useDonationsReceived';
 import { cn } from '@/lib/utils';
 
-type MetricKey = 'views' | 'likes' | 'comments';
+type MetricKey = 'views' | 'likes' | 'comments' | 'donations';
 
 interface ClipAnalyticsProps {
   clipId: string;
+  clipOwner: string;
   createdAtMs: number;
   fallbackViews: number;
 }
@@ -46,7 +51,20 @@ const METRICS: Record<
     color: 'var(--chart-3, #f59e0b)',
     icon: <MessageCircleIcon className="size-4" />,
   },
+  donations: {
+    label: 'Donations',
+    color: 'var(--chart-4, #ec4899)',
+    icon: <HeartHandshakeIcon className="size-4" />,
+  },
 };
+
+function formatSuiTotal(amount: number): string {
+  if (amount === 0) return '0';
+  if (amount >= 100) return amount.toFixed(0);
+  if (amount >= 1) return amount.toFixed(2);
+  if (amount >= 0.01) return amount.toFixed(3);
+  return amount.toFixed(6);
+}
 
 function padSeries(
   series: TimelinePoint[],
@@ -90,10 +108,13 @@ function formatTick(ts: number, spanMs: number): string {
 
 export function ClipAnalytics({
   clipId,
+  clipOwner,
   createdAtMs,
   fallbackViews,
 }: ClipAnalyticsProps) {
   const { data, isLoading, isFetching, refetch } = useClipAnalytics(clipId);
+  const { data: donationData, refetch: refetchDonations } =
+    useDonationsReceived(clipOwner, clipId);
   const [selected, setSelected] = useState<MetricKey>('views');
 
   const now = Date.now();
@@ -133,7 +154,7 @@ export function ClipAnalytics({
           type="button"
           variant="ghost"
           size="sm"
-          onClick={refetch}
+          onClick={() => { refetch(); refetchDonations(); }}
           disabled={isFetching}
           className="gap-1.5"
         >
@@ -144,7 +165,7 @@ export function ClipAnalytics({
         </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCard
           metricKey="views"
           label={METRICS.views.label}
@@ -172,8 +193,35 @@ export function ClipAnalytics({
           onSelect={() => setSelected('comments')}
           isLoading={isLoading}
         />
+        <MetricCard
+          metricKey="donations"
+          label={METRICS.donations.label}
+          icon={METRICS.donations.icon}
+          value={donationData.totalSui}
+          displayValue={`${formatSuiTotal(donationData.totalSui)} SUI`}
+          selected={selected === 'donations'}
+          onSelect={() => setSelected('donations')}
+          isLoading={isLoading}
+        />
       </div>
 
+      {selected === 'donations' ? (
+        <div className="flex flex-col gap-4">
+          <ChannelAnalyticsChart
+            label="SUI donated"
+            color={METRICS.donations.color}
+            icon={METRICS.donations.icon}
+            series={donationData.timeline}
+            startMs={
+              donationData.timeline[0]?.timestampMs ?? createdAtMs
+            }
+          />
+          <DonationList
+            donations={donationData.donations}
+            recipientAddress={clipOwner}
+          />
+        </div>
+      ) : (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
@@ -227,6 +275,7 @@ export function ClipAnalytics({
           </ChartContainer>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
@@ -236,6 +285,7 @@ interface MetricCardProps {
   label: string;
   icon: React.ReactNode;
   value: number;
+  displayValue?: string;
   selected: boolean;
   onSelect: () => void;
   isLoading: boolean;
@@ -245,6 +295,7 @@ function MetricCard({
   label,
   icon,
   value,
+  displayValue,
   selected,
   onSelect,
   isLoading,
@@ -263,7 +314,7 @@ function MetricCard({
         {label}
       </div>
       <div className="text-2xl font-semibold tabular-nums">
-        {isLoading ? '—' : value.toLocaleString()}
+        {isLoading ? '—' : (displayValue ?? value.toLocaleString())}
       </div>
     </Card>
   );

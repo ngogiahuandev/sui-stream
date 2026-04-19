@@ -1,18 +1,27 @@
 'use client';
 
-import { useCallback, useState } from 'react';
-import { CalendarIcon, EyeIcon } from 'lucide-react';
+import { useCallback } from 'react';
+import {
+  CalendarIcon,
+  EyeIcon,
+  MessageCircleIcon,
+  HeartHandshakeIcon,
+} from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BackButton } from '@/components/common/BackButton';
 import { VideoPlayer } from '@/components/watch/VideoPlayer';
 import { ClipOwnerCard } from '@/components/watch/ClipOwnerCard';
 import { VoteButtons } from '@/components/watch/VoteButtons';
 import { CommentsSection } from '@/components/comments/CommentsSection';
+import { DonationList } from '@/components/my-videos/DonationList';
+import { DonateButton } from '@/components/donate/DonateButton';
 import { useClip } from '@/hooks/useClip';
 import { useClipViewCount } from '@/hooks/useClipViewCount';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
+import { useDonationsReceived } from '@/hooks/useDonationsReceived';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 import { isPortraitVideo } from '@/lib/video-aspect';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -28,16 +37,8 @@ export function WatchView({ id }: WatchViewProps) {
     durationSeconds: clip?.durationSeconds,
   });
   const { views } = useClipViewCount(clip?.id, clip?.views ?? 0);
-  const [dimensions, setDimensions] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-
-  const handleDimensionsDetected = useCallback(
-    (width: number, height: number) => {
-      setDimensions({ width, height });
-    },
-    []
+  const { data: donationData } = useDonationsReceived(
+    isLoading || isError || !clip ? undefined : clip.owner
   );
 
   if (isLoading) {
@@ -63,7 +64,7 @@ export function WatchView({ id }: WatchViewProps) {
   }
 
   const posterUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
-  const isPortrait = isPortraitVideo(dimensions?.width, dimensions?.height);
+  const isPortrait = false;
 
   const backButton = <BackButton />;
 
@@ -72,7 +73,6 @@ export function WatchView({ id }: WatchViewProps) {
       src={getWalrusBlobUrl(clip.blobId)}
       poster={posterUrl}
       onTimeUpdate={notifyTimeUpdate}
-      onDimensionsDetected={handleDimensionsDetected}
     />
   );
 
@@ -83,7 +83,10 @@ export function WatchView({ id }: WatchViewProps) {
           {clip.title}
         </h1>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <ClipOwnerCard owner={clip.owner} />
+          <div className="flex items-center gap-2">
+            <ClipOwnerCard owner={clip.owner} />
+            <DonateButton recipient={clip.owner} iconOnly variant="outline" />
+          </div>
           <VoteButtons clipId={clip.id} />
         </div>
         <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
@@ -129,7 +132,32 @@ export function WatchView({ id }: WatchViewProps) {
     </div>
   );
 
-  const comments = <CommentsSection clipId={clip.id} clipOwner={clip.owner} />;
+  const tabContent = (
+    <Tabs defaultValue="comments" className="w-full">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="comments" className="gap-2">
+          <MessageCircleIcon className="size-4" />
+          Comments
+        </TabsTrigger>
+        <TabsTrigger value="donations" className="gap-2">
+          <HeartHandshakeIcon className="size-4" />
+          Donations
+          {donationData && donationData.totalSui > 0
+            ? ` (${donationData.totalSui.toFixed(1)})`
+            : null}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="comments" className="mt-4">
+        <CommentsSection clipId={clip.id} clipOwner={clip.owner} />
+      </TabsContent>
+      <TabsContent value="donations" className="mt-4">
+        <DonationList
+          donations={donationData?.donations ?? []}
+          recipientAddress={clip.owner}
+        />
+      </TabsContent>
+    </Tabs>
+  );
 
   if (isPortrait) {
     return (
@@ -139,9 +167,9 @@ export function WatchView({ id }: WatchViewProps) {
           <div className="grid-cols-1 md:sticky md:top-4 md:self-start">
             {videoPlayer}
           </div>
-          <div className="grid-cols-2 flex flex-col gap-6">
+          <div className="flex grid-cols-2 flex-col gap-6">
             {details}
-            {comments}
+            {tabContent}
           </div>
         </div>
       </section>
@@ -153,7 +181,7 @@ export function WatchView({ id }: WatchViewProps) {
       {backButton}
       {videoPlayer}
       {details}
-      {comments}
+      {tabContent}
     </section>
   );
 }

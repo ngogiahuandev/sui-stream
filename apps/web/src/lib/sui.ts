@@ -3,6 +3,7 @@ import { bcs } from '@mysten/sui/bcs';
 import type { SuiObjectResponse } from '@mysten/sui/jsonRpc';
 import {
   SUI_CLOCK_OBJECT_ID,
+  SUI_STREAM_DONATE_PACKAGE_ID,
   SUI_STREAM_MODULE,
   SUI_STREAM_PACKAGE_ID,
 } from '@/lib/constants';
@@ -208,6 +209,36 @@ export function buildDeleteCommentTx(
       tx.object(commentId),
       tx.pure.id(clipId),
       tx.pure.address(author),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  return tx;
+}
+
+export interface DonateTxInput {
+  donor: string;
+  recipient: string;
+  amountMist: bigint;
+  message?: string;
+}
+
+export function buildDonateTx(input: DonateTxInput): Transaction {
+  const pkg = SUI_STREAM_DONATE_PACKAGE_ID || SUI_STREAM_PACKAGE_ID;
+  if (!pkg) {
+    throw new Error(
+      'NEXT_PUBLIC_SUI_STREAM_PACKAGE is not set. Deploy the Move package and set the env var.'
+    );
+  }
+  const tx = new Transaction();
+  tx.setSender(input.donor);
+  tx.setGasOwner(input.donor);
+  const coin = tx.splitCoins(tx.gas, [tx.pure.u64(input.amountMist)]);
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::donate`,
+    arguments: [
+      tx.pure.address(input.recipient),
+      coin,
+      tx.pure.string(input.message ?? ''),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

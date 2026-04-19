@@ -49,6 +49,11 @@ export function usePublicClips() {
         options: { showContent: true, showOwner: true },
       });
 
+      console.info('[public-clips] queryEvents result', {
+        eventCount: events.data.length,
+        objectCount: objects.length,
+      });
+
       const clips: Clip[] = [];
       for (const obj of objects) {
         const parsed = parseClipObject(obj);

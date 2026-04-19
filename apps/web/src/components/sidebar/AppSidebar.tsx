@@ -2,7 +2,6 @@
 
 import type { ComponentProps } from 'react';
 import {
-  BellIcon,
   CompassIcon,
   HistoryIcon,
   SettingsIcon,
@@ -30,12 +29,7 @@ const SIDEBAR_DATA = {
       icon: <CompassIcon />,
     },
     {
-      title: 'Subscriptions',
-      url: '/dashboard/subscriptions',
-      icon: <BellIcon />,
-    },
-    {
-      title: 'My Videos',
+      title: 'My Channel',
       url: '/dashboard/my-videos',
       icon: <VideoIcon />,
     },

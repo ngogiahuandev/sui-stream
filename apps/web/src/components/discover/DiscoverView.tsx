@@ -47,6 +47,24 @@ interface TagFilterBarProps {
   onTagRemove: (tag: string) => void;
 }
 
+function formatTag(tag: string): string {
+  const special: Record<string, string> = {
+    ai: 'Ai',
+    ml: 'ML',
+    llm: 'LLM',
+    nft: 'NFT',
+    defi: 'DeFi',
+    web3: 'Web3',
+    crypto: 'Crypto',
+  };
+  const lower = tag.toLowerCase();
+  if (special[lower]) return special[lower];
+  return tag
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 function TagFilterBar({
   availableTags,
   selectedTags,
@@ -60,14 +78,14 @@ function TagFilterBar({
   return (
     <div className="scrollbar-hide flex gap-2 overflow-x-auto">
       {availableTags.map((tag) => (
-        <Badge
+        <Button
           key={tag}
-          variant={isSelected(tag) ? 'default' : 'outline'}
-          className="shrink-0 cursor-pointer px-3 py-2 text-sm"
+          variant="secondary"
+          size="sm"
           onClick={() => (isSelected(tag) ? onTagRemove(tag) : onTagClick(tag))}
         >
-          {tag}
-        </Badge>
+          {formatTag(tag)}
+        </Button>
       ))}
     </div>
   );

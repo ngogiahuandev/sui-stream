@@ -4,15 +4,12 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from 'web3-avatar-react';
 import {
-  BellIcon,
-  BellOffIcon,
   Loader2Icon,
   RefreshCwIcon,
   ThumbsDownIcon,
   ThumbsUpIcon,
   UploadCloudIcon,
   UserIcon,
-  UsersIcon,
 } from 'lucide-react';
 import { useCurrentAccount } from '@mysten/dapp-kit';
 import { Button } from '@/components/ui/button';
@@ -20,9 +17,9 @@ import { ClipGrid } from '@/components/clips/ClipGrid';
 import { ClipGridSkeleton } from '@/components/clips/ClipGridSkeleton';
 import { CopyButton } from '@/components/common/CopyButton';
 import { BackButton } from '@/components/common/BackButton';
+import { DonateButton } from '@/components/donate/DonateButton';
 import { useUserClips } from '@/hooks/useUserClips';
 import { useUserVoteTotals } from '@/hooks/useUserVoteTotals';
-import { useSubscription } from '@/hooks/useSubscriptions';
 import { SUI_STREAM_PACKAGE_ID } from '@/lib/constants';
 import {
   Card,
@@ -61,28 +58,7 @@ export function UserView({ address }: UserViewProps) {
   const clipIds = useMemo(() => clips.map((c) => c.id), [clips]);
   const { upvotes, downvotes } = useUserVoteTotals(clipIds);
 
-  const {
-    isSubscribed,
-    subscriberCount,
-    isLoading: subsLoading,
-    toggle: toggleSubscription,
-  } = useSubscription(address);
-
-  const [isToggling, setIsToggling] = useState(false);
-  const subscribeDisabled = subsLoading || isToggling;
-
-  const handleToggleSubscription = async () => {
-    if (isToggling) return;
-    setIsToggling(true);
-    try {
-      await toggleSubscription();
-    } finally {
-      setIsToggling(false);
-    }
-  };
-
-  const isSelf =
-    account?.address?.toLowerCase() === address.toLowerCase();
+  const isSelf = account?.address?.toLowerCase() === address.toLowerCase();
 
   if (!SUI_STREAM_PACKAGE_ID) {
     return (
@@ -108,49 +84,33 @@ export function UserView({ address }: UserViewProps) {
               address={address}
               className="size-12 shrink-0 overflow-hidden rounded-full"
             />
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="text-foreground font-mono text-sm"
-                title={address}
-              >
-                {shortAddress(address)}
-              </span>
-              <CopyButton value={address} label="Copy address" />
+            <div>
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className="text-foreground font-mono text-sm"
+                  title={address}
+                >
+                  {shortAddress(address)}
+                </span>
+                <CopyButton value={address} label="Copy address" />
+              </div>
+              <CardDescription>
+                {isLoading
+                  ? 'Loading clips…'
+                  : clips.length === 1
+                    ? '1 published clip'
+                    : `${clips.length} published clips`}
+              </CardDescription>
             </div>
           </CardTitle>
-          <CardDescription>
-            {isLoading
-              ? 'Loading clips…'
-              : clips.length === 1
-                ? '1 published clip'
-                : `${clips.length} published clips`}
-          </CardDescription>
+
           <CardAction>
             <div className="flex items-center gap-2">
               {!isSelf ? (
-                <Button
-                  type="button"
-                  variant={isSubscribed ? 'secondary' : 'default'}
-                  size="sm"
-                  onClick={() => void handleToggleSubscription()}
-                  disabled={subscribeDisabled}
-                  className="gap-1.5"
-                >
-                  {subscribeDisabled ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : isSubscribed ? (
-                    <BellOffIcon className="size-3.5" />
-                  ) : (
-                    <BellIcon className="size-3.5" />
-                  )}
-                  {isToggling
-                    ? isSubscribed
-                      ? 'Unsubscribing…'
-                      : 'Subscribing…'
-                    : isSubscribed
-                      ? 'Subscribed'
-                      : 'Subscribe'}
-                </Button>
+                <DonateButton
+                  recipient={address}
+                  recipientLabel={shortAddress(address)}
+                />
               ) : null}
               <Button
                 type="button"
@@ -170,12 +130,7 @@ export function UserView({ address }: UserViewProps) {
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <StatPill
-          icon={<UsersIcon className="size-4" />}
-          label="Subscribers"
-          value={formatCount(subscriberCount)}
-        />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-2">
         <StatPill
           icon={<ThumbsUpIcon className="size-4" />}
           label="Upvotes"

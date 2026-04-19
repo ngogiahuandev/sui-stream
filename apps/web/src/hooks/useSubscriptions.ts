@@ -115,9 +115,53 @@ export function useSubscription(
   const queryClient = useQueryClient();
   const active = useActiveSubscriptions();
 
-  const invalidate = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['subscriptions-active'] });
+  const invalidate = useCallback(async () => {
+    await queryClient.refetchQueries({ queryKey: ['subscriptions-active'] });
   }, [queryClient]);
+
+  const optimisticAdd = useCallback(
+    (subscriber: string, targetAddr: string) => {
+      queryClient.setQueryData<ActiveSubscription[]>(
+        ['subscriptions-active'],
+        (prev) => {
+          const list = prev ?? [];
+          const key = `${subscriber.toLowerCase()}->${targetAddr.toLowerCase()}`;
+          const exists = list.some(
+            (s) =>
+              `${s.subscriber.toLowerCase()}->${s.target.toLowerCase()}` === key
+          );
+          if (exists) return list;
+          return [
+            ...list,
+            {
+              subscriptionId: '',
+              subscriber,
+              target: targetAddr,
+              createdAtMs: Date.now(),
+            },
+          ];
+        }
+      );
+    },
+    [queryClient]
+  );
+
+  const optimisticRemove = useCallback(
+    (subscriber: string, targetAddr: string) => {
+      queryClient.setQueryData<ActiveSubscription[]>(
+        ['subscriptions-active'],
+        (prev) => {
+          if (!prev) return prev;
+          const key = `${subscriber.toLowerCase()}->${targetAddr.toLowerCase()}`;
+          return prev.filter(
+            (s) =>
+              `${s.subscriber.toLowerCase()}->${s.target.toLowerCase()}` !== key
+          );
+        }
+      );
+    },
+    [queryClient]
+  );
 
   const targetLower = target?.toLowerCase();
   const selfLower = account?.address?.toLowerCase();
@@ -163,19 +207,24 @@ export function useSubscription(
           `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::subscribe`,
         ],
       });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      invalidate();
+      optimisticAdd(account.address, target);
       toast.success('Subscribed.');
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await invalidate();
     } catch (error) {
       console.error('[subscribe] failed', error);
       toast.error(
         error instanceof Error ? error.message : 'Could not subscribe.'
       );
     }
-  }, [account, target, suiClient, userEntry, invalidate]);
+  }, [account, target, suiClient, userEntry, invalidate, optimisticAdd]);
 
   const unsubscribe = useCallback(async () => {
     if (!account || !userEntry) return;
+    if (!userEntry.subscriptionId) {
+      toast.error('Subscription still syncing — try again in a moment.');
+      return;
+    }
 
     const tx = buildUnsubscribeTx(account.address, userEntry.subscriptionId);
     try {
@@ -186,16 +235,17 @@ export function useSubscription(
           `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::unsubscribe`,
         ],
       });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      invalidate();
+      optimisticRemove(account.address, userEntry.target);
       toast.success('Unsubscribed.');
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await invalidate();
     } catch (error) {
       console.error('[unsubscribe] failed', error);
       toast.error(
         error instanceof Error ? error.message : 'Could not unsubscribe.'
       );
     }
-  }, [account, userEntry, suiClient, invalidate]);
+  }, [account, userEntry, suiClient, invalidate, optimisticRemove]);
 
   const toggle = useCallback(async () => {
     if (userEntry) await unsubscribe();

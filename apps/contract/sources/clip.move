@@ -2,7 +2,9 @@ module sui_stream::clip;
 
 use std::string::{Self, String};
 use sui::clock::Clock;
+use sui::coin::{Self, Coin};
 use sui::event;
+use sui::sui::SUI;
 
 const MAX_DURATION_SECONDS: u64 = 3600;
 const MAX_TITLE_LEN: u64 = 80;
@@ -514,4 +516,47 @@ public fun remove_vote(
     });
 
     object::delete(id);
+}
+
+const EDonateSelf: u64 = 18;
+const EDonateZero: u64 = 19;
+const EDonateMessageTooLong: u64 = 20;
+
+const MAX_DONATE_MESSAGE_WORDS: u64 = 200;
+
+public struct DonationSent has copy, drop {
+    donor: address,
+    recipient: address,
+    amount: u64,
+    message: String,
+    created_at_ms: u64,
+}
+
+public fun donate(
+    recipient: address,
+    payment: Coin<SUI>,
+    message: String,
+    clock: &Clock,
+    ctx: &TxContext,
+) {
+    let donor = tx_context::sender(ctx);
+    assert!(donor != recipient, EDonateSelf);
+
+    let amount = coin::value(&payment);
+    assert!(amount > 0, EDonateZero);
+
+    if (string::length(&message) > 0) {
+        let words = count_words(&message);
+        assert!(words <= MAX_DONATE_MESSAGE_WORDS, EDonateMessageTooLong);
+    };
+
+    event::emit(DonationSent {
+        donor,
+        recipient,
+        amount,
+        message,
+        created_at_ms: clock.timestamp_ms(),
+    });
+
+    transfer::public_transfer(payment, recipient);
 }

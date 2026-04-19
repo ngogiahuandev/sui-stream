@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { EyeIcon, HeartIcon, PlayIcon } from 'lucide-react';
+import { EyeIcon, HeartIcon, PencilIcon, PlayIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 import { useImageAspectRatio } from '@/hooks/useImageAspectRatio';
+import { useClipCounts } from '@/hooks/useClipCounts';
 import { cn } from '@/lib/utils';
 import type { Clip } from '@/types/clip';
 
@@ -32,26 +33,39 @@ interface ClipCardBentoProps {
   clip: Clip;
   className?: string;
   large?: boolean;
+  mode?: 'watch' | 'edit';
 }
 
-export function ClipCardBento({ clip, className, large }: ClipCardBentoProps) {
+export function ClipCardBento({
+  clip,
+  className,
+  large,
+  mode = 'watch',
+}: ClipCardBentoProps) {
   const thumbnailUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const { ratio, isLoaded } = useImageAspectRatio(thumbnailUrl);
+  const { views, likes } = useClipCounts(clip.id, clip.views, clip.likes);
   const aspectStyle =
     isLoaded && ratio
       ? { aspectRatio: String(ratio) }
       : { aspectRatio: '16 / 9' };
 
+  const href =
+    mode === 'edit'
+      ? `/dashboard/my-videos/${clip.id}`
+      : `/dashboard/watch/${clip.id}`;
+  const label = mode === 'edit' ? `Edit ${clip.title}` : `Watch ${clip.title}`;
+
   return (
     <Link
-      href={`/dashboard/watch/${clip.id}`}
+      href={href}
       style={aspectStyle}
       className={cn(
         'group bg-muted relative mb-3 block w-full break-inside-avoid overflow-hidden rounded-xl',
         large ? 'md:col-span-2 md:row-span-2' : '',
         className
       )}
-      aria-label={`Watch ${clip.title}`}
+      aria-label={label}
     >
       <Image
         src={thumbnailUrl}
@@ -65,11 +79,19 @@ export function ClipCardBento({ clip, className, large }: ClipCardBentoProps) {
         className="object-cover transition group-hover:scale-[1.03]"
         unoptimized
       />
-      <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/40">
-        <span className="flex size-12 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100">
-          <PlayIcon className="size-6" />
-        </span>
-      </div>
+      {mode === 'watch' ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/40">
+          <span className="flex size-12 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition group-hover:opacity-100">
+            <PlayIcon className="size-6" />
+          </span>
+        </div>
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition group-hover:bg-black/40">
+          <span className="flex size-12 items-center justify-center rounded-full bg-black/60 px-4 text-white opacity-0 transition group-hover:opacity-100">
+            <PencilIcon className="size-6" />
+          </span>
+        </div>
+      )}
       <Badge
         variant="secondary"
         className="absolute top-2 right-2 rounded-full bg-black/70 px-2 py-0.5 text-white"
@@ -83,11 +105,11 @@ export function ClipCardBento({ clip, className, large }: ClipCardBentoProps) {
         <div className="mt-1 flex items-center gap-3 text-xs text-white/80">
           <span className="flex items-center gap-1">
             <EyeIcon className="size-3" />
-            {formatCount(clip.views)}
+            {formatCount(views)}
           </span>
           <span className="flex items-center gap-1">
             <HeartIcon className="size-3" />
-            {formatCount(clip.likes)}
+            {formatCount(likes)}
           </span>
         </div>
       </div>
@@ -98,6 +120,7 @@ export function ClipCardBento({ clip, className, large }: ClipCardBentoProps) {
 export function ClipCard({ clip, className }: ClipCardProps) {
   const thumbnailUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const { ratio, isLoaded } = useImageAspectRatio(thumbnailUrl);
+  const { views, likes } = useClipCounts(clip.id, clip.views, clip.likes);
   const aspectStyle =
     isLoaded && ratio
       ? { aspectRatio: String(ratio) }
@@ -139,11 +162,11 @@ export function ClipCard({ clip, className }: ClipCardProps) {
           <div className="mt-1 flex items-center gap-3 text-xs text-white/80">
             <span className="flex items-center gap-1">
               <EyeIcon className="size-3" />
-              {formatCount(clip.views)}
+              {formatCount(views)}
             </span>
             <span className="flex items-center gap-1">
               <HeartIcon className="size-3" />
-              {formatCount(clip.likes)}
+              {formatCount(likes)}
             </span>
           </div>
         </div>

@@ -1,5 +1,5 @@
-import { SubscriptionsView } from '@/components/subscriptions/SubscriptionsView';
+import { redirect } from 'next/navigation';
 
 export default function SubscriptionsPage() {
-  return <SubscriptionsView />;
+  redirect('/dashboard/discover');
 }

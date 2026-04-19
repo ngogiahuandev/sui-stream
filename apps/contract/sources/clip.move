@@ -157,6 +157,98 @@ public fun increment_views(clip: &mut Clip) {
     event::emit(ClipViewed { id: object::uid_to_inner(&clip.id) });
 }
 
+public fun track_view(
+    clip_id: ID,
+    _viewer: address,
+    _ctx: &TxContext,
+) {
+    event::emit(ClipViewed { id: clip_id });
+}
+
+public struct Subscription has key, store {
+    id: UID,
+    subscriber: address,
+    target: address,
+    created_at_ms: u64,
+}
+
+public struct Subscribed has copy, drop {
+    subscription_id: ID,
+    subscriber: address,
+    target: address,
+    created_at_ms: u64,
+}
+
+public struct Unsubscribed has copy, drop {
+    subscription_id: ID,
+    subscriber: address,
+    target: address,
+    removed_at_ms: u64,
+}
+
+const ESubscribeSelf: u64 = 12;
+const ESubscriberMismatch: u64 = 13;
+const ECommentEmpty: u64 = 14;
+const ECommentTooLong: u64 = 15;
+const ECommentAuthorMismatch: u64 = 16;
+const ECommentClipMismatch: u64 = 17;
+
+const MAX_COMMENT_WORDS: u64 = 500;
+
+public fun subscribe(
+    subscriber: address,
+    target: address,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    assert!(subscriber != target, ESubscribeSelf);
+    let created_at_ms = clock.timestamp_ms();
+    let id = object::new(ctx);
+    let subscription_id = object::uid_to_inner(&id);
+
+    let sub = Subscription {
+        id,
+        subscriber,
+        target,
+        created_at_ms,
+    };
+
+    event::emit(Subscribed {
+        subscription_id,
+        subscriber,
+        target,
+        created_at_ms,
+    });
+
+    transfer::public_share_object(sub);
+}
+
+public fun unsubscribe(
+    sub: Subscription,
+    subscriber: address,
+    clock: &Clock,
+    _ctx: &TxContext,
+) {
+    assert!(sub.subscriber == subscriber, ESubscriberMismatch);
+
+    let Subscription {
+        id,
+        subscriber: stored_subscriber,
+        target,
+        created_at_ms: _,
+    } = sub;
+    let subscription_id = object::uid_to_inner(&id);
+
+    event::emit(Unsubscribed {
+        subscription_id,
+        subscriber: stored_subscriber,
+        target,
+        removed_at_ms: clock.timestamp_ms(),
+    });
+
+    object::delete(id);
+}
+
 public fun like_clip(clip: &mut Clip) {
     clip.likes = clip.likes + 1;
     event::emit(ClipLiked { id: object::uid_to_inner(&clip.id) });
@@ -208,6 +300,120 @@ public fun duration_seconds(clip: &Clip): u64 { clip.duration_seconds }
 public fun likes(clip: &Clip): u64 { clip.likes }
 public fun views(clip: &Clip): u64 { clip.views }
 public fun created_at_ms(clip: &Clip): u64 { clip.created_at_ms }
+
+public struct Comment has key, store {
+    id: UID,
+    clip_id: ID,
+    author: address,
+    content: String,
+    created_at_ms: u64,
+}
+
+public struct CommentCreated has copy, drop {
+    comment_id: ID,
+    clip_id: ID,
+    author: address,
+    content: String,
+    created_at_ms: u64,
+}
+
+public struct CommentDeleted has copy, drop {
+    comment_id: ID,
+    clip_id: ID,
+    author: address,
+    removed_at_ms: u64,
+}
+
+fun count_words(content: &String): u64 {
+    let bytes = string::as_bytes(content);
+    let len = vector::length(bytes);
+    let mut count = 0;
+    let mut in_word = false;
+    let mut i = 0;
+    while (i < len) {
+        let b = *vector::borrow(bytes, i);
+        let is_ws = b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D;
+        if (is_ws) {
+            in_word = false;
+        } else if (!in_word) {
+            in_word = true;
+            count = count + 1;
+        };
+        i = i + 1;
+    };
+    count
+}
+
+fun validate_comment(content: &String) {
+    let word_count = count_words(content);
+    assert!(word_count > 0, ECommentEmpty);
+    assert!(word_count <= MAX_COMMENT_WORDS, ECommentTooLong);
+}
+
+public fun create_comment(
+    clip_id: ID,
+    author: address,
+    content: String,
+    clock: &Clock,
+    ctx: &mut TxContext,
+) {
+    validate_comment(&content);
+    let created_at_ms = clock.timestamp_ms();
+    let id = object::new(ctx);
+    let comment_id = object::uid_to_inner(&id);
+
+    let comment = Comment {
+        id,
+        clip_id,
+        author,
+        content,
+        created_at_ms,
+    };
+
+    event::emit(CommentCreated {
+        comment_id,
+        clip_id,
+        author,
+        content: comment.content,
+        created_at_ms,
+    });
+
+    transfer::public_share_object(comment);
+}
+
+public fun delete_comment(
+    comment: Comment,
+    clip_id: ID,
+    author: address,
+    clock: &Clock,
+    _ctx: &TxContext,
+) {
+    assert!(comment.clip_id == clip_id, ECommentClipMismatch);
+    assert!(comment.author == author, ECommentAuthorMismatch);
+
+    let Comment {
+        id,
+        clip_id: stored_clip_id,
+        author: stored_author,
+        content: _,
+        created_at_ms: _,
+    } = comment;
+    let comment_id = object::uid_to_inner(&id);
+
+    event::emit(CommentDeleted {
+        comment_id,
+        clip_id: stored_clip_id,
+        author: stored_author,
+        removed_at_ms: clock.timestamp_ms(),
+    });
+
+    object::delete(id);
+}
+
+public fun comment_clip_id(comment: &Comment): ID { comment.clip_id }
+public fun comment_author(comment: &Comment): address { comment.author }
+public fun comment_content(comment: &Comment): &String { &comment.content }
+public fun comment_created_at_ms(comment: &Comment): u64 { comment.created_at_ms }
 
 public fun vote_clip_id(vote: &Vote): ID { vote.clip_id }
 public fun vote_voter(vote: &Vote): address { vote.voter }

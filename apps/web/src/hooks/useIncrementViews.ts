@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSuiClient } from '@mysten/dapp-kit';
-import { buildIncrementViewsTx } from '@/lib/sui';
+import { useCurrentAccount, useSuiClient } from '@mysten/dapp-kit';
+import { buildTrackViewTx } from '@/lib/sui';
 import { executeAsSponsor } from '@/lib/sponsor-client';
 import {
   SUI_STREAM_MODULE,
@@ -30,6 +30,7 @@ export function useIncrementViews({
   enabled = true,
 }: UseIncrementViewsOptions): UseIncrementViewsResult {
   const suiClient = useSuiClient();
+  const account = useCurrentAccount();
   const firingRef = useRef(false);
   const lastTimeRef = useRef<number | null>(null);
   const watchedRef = useRef(0);
@@ -63,25 +64,28 @@ export function useIncrementViews({
       const threshold = durationSeconds * VIEW_THRESHOLD_RATIO;
       if (watchedRef.current < threshold) return;
 
+      const viewer = account?.address;
+      if (!viewer) return;
+
       firingRef.current = true;
       sessionFiredClips.add(clipId);
       setHasFired(true);
 
-      const tx = buildIncrementViewsTx(clipId);
+      const tx = buildTrackViewTx(clipId, viewer);
       executeAsSponsor({
         transaction: tx,
         client: suiClient,
         allowedMoveCallTargets: [
-          `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::increment_views`,
+          `${SUI_STREAM_PACKAGE_ID}::${SUI_STREAM_MODULE}::track_view`,
         ],
       }).catch((error) => {
-        console.warn('[views] failed to increment views', error);
+        console.warn('[views] failed to track view', error);
         sessionFiredClips.delete(clipId);
         firingRef.current = false;
         setHasFired(false);
       });
     },
-    [enabled, clipId, durationSeconds, suiClient, hasFired]
+    [enabled, clipId, durationSeconds, suiClient, hasFired, account?.address]
   );
 
   return { notifyTimeUpdate };

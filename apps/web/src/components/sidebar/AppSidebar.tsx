@@ -1,7 +1,13 @@
 'use client';
 
 import type { ComponentProps } from 'react';
-import { CompassIcon, SettingsIcon } from 'lucide-react';
+import {
+  BellIcon,
+  CompassIcon,
+  HistoryIcon,
+  SettingsIcon,
+  VideoIcon,
+} from 'lucide-react';
 
 import { Logo } from '@/components/layout/Logo';
 import { NavMain } from '@/components/sidebar/NavMain';
@@ -22,6 +28,21 @@ const SIDEBAR_DATA = {
       title: 'Discover',
       url: '/dashboard/discover',
       icon: <CompassIcon />,
+    },
+    {
+      title: 'Subscriptions',
+      url: '/dashboard/subscriptions',
+      icon: <BellIcon />,
+    },
+    {
+      title: 'My Videos',
+      url: '/dashboard/my-videos',
+      icon: <VideoIcon />,
+    },
+    {
+      title: 'History',
+      url: '/dashboard/history',
+      icon: <HistoryIcon />,
     },
   ],
   navSecondary: [

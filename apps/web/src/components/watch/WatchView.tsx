@@ -1,16 +1,17 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import Link from 'next/link';
-import { ArrowLeftIcon, CalendarIcon, EyeIcon } from 'lucide-react';
+import { CalendarIcon, EyeIcon } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BackButton } from '@/components/common/BackButton';
 import { VideoPlayer } from '@/components/watch/VideoPlayer';
 import { ClipOwnerCard } from '@/components/watch/ClipOwnerCard';
 import { VoteButtons } from '@/components/watch/VoteButtons';
+import { CommentsSection } from '@/components/comments/CommentsSection';
 import { useClip } from '@/hooks/useClip';
+import { useClipViewCount } from '@/hooks/useClipViewCount';
 import { useIncrementViews } from '@/hooks/useIncrementViews';
 import { getWalrusBlobUrl } from '@/lib/walrus';
 import { isPortraitVideo } from '@/lib/video-aspect';
@@ -26,6 +27,7 @@ export function WatchView({ id }: WatchViewProps) {
     clipId: clip?.id,
     durationSeconds: clip?.durationSeconds,
   });
+  const { views } = useClipViewCount(clip?.id, clip?.views ?? 0);
   const [dimensions, setDimensions] = useState<{
     width: number;
     height: number;
@@ -55,12 +57,7 @@ export function WatchView({ id }: WatchViewProps) {
         <p className="text-muted-foreground text-sm">
           The clip you're looking for doesn't exist or is no longer available.
         </p>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/dashboard/discover" className="gap-1.5">
-            <ArrowLeftIcon className="size-4" />
-            Back to Discover
-          </Link>
-        </Button>
+        <BackButton label="Back to Discover" variant="outline" />
       </section>
     );
   }
@@ -68,14 +65,7 @@ export function WatchView({ id }: WatchViewProps) {
   const posterUrl = getWalrusBlobUrl(clip.thumbnailBlobId);
   const isPortrait = isPortraitVideo(dimensions?.width, dimensions?.height);
 
-  const backButton = (
-    <Button asChild size="sm" variant="ghost" className="gap-1.5 self-start">
-      <Link href="/dashboard/discover">
-        <ArrowLeftIcon className="size-4" />
-        Back
-      </Link>
-    </Button>
-  );
+  const backButton = <BackButton />;
 
   const videoPlayer = (
     <VideoPlayer
@@ -99,7 +89,7 @@ export function WatchView({ id }: WatchViewProps) {
         <div className="text-muted-foreground flex flex-wrap items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
             <EyeIcon className="size-4" />
-            {clip.views.toLocaleString()} views
+            {views.toLocaleString()} views
           </span>
           {Number.isFinite(clip.createdAtMs) && clip.createdAtMs > 0 ? (
             <span
@@ -139,6 +129,8 @@ export function WatchView({ id }: WatchViewProps) {
     </div>
   );
 
+  const comments = <CommentsSection clipId={clip.id} clipOwner={clip.owner} />;
+
   if (isPortrait) {
     return (
       <section className="mx-auto flex w-full max-w-4xl flex-col gap-5 p-4 md:p-6">
@@ -147,7 +139,10 @@ export function WatchView({ id }: WatchViewProps) {
           <div className="grid-cols-1 md:sticky md:top-4 md:self-start">
             {videoPlayer}
           </div>
-          <div className="grid-cols-2">{details}</div>
+          <div className="grid-cols-2 flex flex-col gap-6">
+            {details}
+            {comments}
+          </div>
         </div>
       </section>
     );
@@ -158,6 +153,7 @@ export function WatchView({ id }: WatchViewProps) {
       {backButton}
       {videoPlayer}
       {details}
+      {comments}
     </section>
   );
 }

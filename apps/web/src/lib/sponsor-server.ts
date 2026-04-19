@@ -17,10 +17,16 @@ const ALLOWED_TARGETS = new Set(
     ? [
         `${PACKAGE_ID}::clip::create_clip`,
         `${PACKAGE_ID}::clip::increment_views`,
+        `${PACKAGE_ID}::clip::track_view`,
         `${PACKAGE_ID}::clip::like_clip`,
         `${PACKAGE_ID}::clip::vote_clip`,
         `${PACKAGE_ID}::clip::cast_vote`,
         `${PACKAGE_ID}::clip::remove_vote`,
+        `${PACKAGE_ID}::clip::subscribe`,
+        `${PACKAGE_ID}::clip::unsubscribe`,
+        `${PACKAGE_ID}::clip::create_comment`,
+        `${PACKAGE_ID}::clip::delete_comment`,
+        `${PACKAGE_ID}::clip::update_metadata`,
       ]
     : []
 );

@@ -50,12 +50,45 @@ export function buildCreateClipTx(input: CreateClipTxInput): Transaction {
   return tx;
 }
 
+export interface UpdateMetadataTxInput {
+  clipId: string;
+  title: string;
+  description: string;
+  tags: string[];
+}
+
+export function buildUpdateMetadataTx(input: UpdateMetadataTxInput): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  const tagsArg = tx.pure(bcs.vector(bcs.string()).serialize(input.tags));
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::update_metadata`,
+    arguments: [
+      tx.object(input.clipId),
+      tx.pure.string(input.title),
+      tx.pure.string(input.description),
+      tagsArg,
+    ],
+  });
+  return tx;
+}
+
 export function buildIncrementViewsTx(clipId: string): Transaction {
   const pkg = requirePackageId();
   const tx = new Transaction();
   tx.moveCall({
     target: `${pkg}::${SUI_STREAM_MODULE}::increment_views`,
     arguments: [tx.object(clipId)],
+  });
+  return tx;
+}
+
+export function buildTrackViewTx(clipId: string, viewer: string): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::track_view`,
+    arguments: [tx.pure.id(clipId), tx.pure.address(viewer)],
   });
   return tx;
 }
@@ -118,6 +151,80 @@ export function buildRemoveVoteTx(
     arguments: [
       tx.object(voteId),
       tx.pure.id(clipId),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  return tx;
+}
+
+export function buildSubscribeTx(
+  subscriber: string,
+  target: string
+): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::subscribe`,
+    arguments: [
+      tx.pure.address(subscriber),
+      tx.pure.address(target),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  return tx;
+}
+
+export interface CreateCommentTxInput {
+  clipId: string;
+  author: string;
+  content: string;
+}
+
+export function buildCreateCommentTx(input: CreateCommentTxInput): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::create_comment`,
+    arguments: [
+      tx.pure.id(input.clipId),
+      tx.pure.address(input.author),
+      tx.pure.string(input.content),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  return tx;
+}
+
+export function buildDeleteCommentTx(
+  commentId: string,
+  clipId: string,
+  author: string
+): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::delete_comment`,
+    arguments: [
+      tx.object(commentId),
+      tx.pure.id(clipId),
+      tx.pure.address(author),
+      tx.object(SUI_CLOCK_OBJECT_ID),
+    ],
+  });
+  return tx;
+}
+
+export function buildUnsubscribeTx(
+  subscriber: string,
+  subscriptionId: string
+): Transaction {
+  const pkg = requirePackageId();
+  const tx = new Transaction();
+  tx.moveCall({
+    target: `${pkg}::${SUI_STREAM_MODULE}::unsubscribe`,
+    arguments: [
+      tx.object(subscriptionId),
+      tx.pure.address(subscriber),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
   });

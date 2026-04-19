@@ -31,6 +31,9 @@ export function ClipOwnerCard({ owner, className }: ClipOwnerCardProps) {
       <span className="font-mono text-xs font-medium">
         {shortAddress(owner)}
       </span>
+      <span className="bg-secondary rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+        OP
+      </span>
     </Link>
   );
 }
